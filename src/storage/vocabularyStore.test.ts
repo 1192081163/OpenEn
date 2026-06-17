@@ -1,14 +1,39 @@
 import type { VocabularyEntry } from "../shared/types";
 import { createVocabularyStore, type StorageAreaLike } from "./vocabularyStore";
 
-function createMemoryStorage(): StorageAreaLike {
+const STORAGE_KEY = "openen:vocabulary";
+
+function cloneValue<T>(value: T): T {
+  return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
+}
+
+function delay(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function createMemoryStorage(initialValue?: unknown): StorageAreaLike {
   const data = new Map<string, unknown>();
+  if (initialValue !== undefined) data.set(STORAGE_KEY, initialValue);
   return {
     async get(key: string) {
       return { [key]: data.get(key) };
     },
     async set(values: Record<string, unknown>) {
       for (const [key, value] of Object.entries(values)) data.set(key, value);
+    }
+  };
+}
+
+function createDelayedMemoryStorage(): StorageAreaLike {
+  const data = new Map<string, unknown>();
+  return {
+    async get(key: string) {
+      await delay();
+      return { [key]: cloneValue(data.get(key)) };
+    },
+    async set(values: Record<string, unknown>) {
+      await delay();
+      for (const [key, value] of Object.entries(values)) data.set(key, cloneValue(value));
     }
   };
 }
@@ -58,5 +83,45 @@ describe("vocabulary store", () => {
     expect((await store.search("context")).map((item) => item.id)).toEqual(["b"]);
     await store.delete("b");
     expect((await store.list()).map((item) => item.id)).toEqual(["a"]);
+  });
+
+  it("serializes concurrent writes so entries are not dropped", async () => {
+    const store = createVocabularyStore(createDelayedMemoryStorage());
+
+    await Promise.all([
+      store.add(entry({ id: "a", selectedText: "alpha", sourceUrl: "https://example.com/a" })),
+      store.add(entry({ id: "b", selectedText: "beta", sourceUrl: "https://example.com/b" }))
+    ]);
+
+    expect((await store.list()).map((item) => item.id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("filters malformed stored entries before reading or mutating", async () => {
+    const store = createVocabularyStore(
+      createMemoryStorage([
+        null,
+        { id: "partial", selectedText: "partial" },
+        { ...entry({ id: "non-string" }), translation: 42 },
+        entry({ id: "valid", selectedText: "valid" })
+      ])
+    );
+
+    expect((await store.list()).map((item) => item.id)).toEqual(["valid"]);
+    expect((await store.search("valid")).map((item) => item.id)).toEqual(["valid"]);
+
+    await store.add(entry({ id: "new", selectedText: "new", sourceUrl: "https://example.com/new" }));
+    await store.delete("valid");
+
+    expect((await store.list()).map((item) => item.id)).toEqual(["new"]);
+  });
+
+  it("keeps different entries with duplicate ids by assigning a suffix", async () => {
+    const store = createVocabularyStore(createMemoryStorage());
+
+    await store.add(entry({ id: "same", selectedText: "lead", sourceUrl: "https://example.com/a" }));
+    const added = await store.add(entry({ id: "same", selectedText: "open", sourceUrl: "https://example.com/b" }));
+
+    expect(added.id).toBe("same-1");
+    expect((await store.list()).map((item) => item.id).sort()).toEqual(["same", "same-1"]);
   });
 });

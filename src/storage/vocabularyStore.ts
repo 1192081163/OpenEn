@@ -14,6 +14,27 @@ export interface VocabularyStore {
   delete(id: string): Promise<void>;
 }
 
+function isStringRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isVocabularyEntry(value: unknown): value is VocabularyEntry {
+  if (!isStringRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.selectedText === "string" &&
+    typeof value.translation === "string" &&
+    typeof value.partOfSpeech === "string" &&
+    typeof value.contextualMeaning === "string" &&
+    typeof value.example === "string" &&
+    typeof value.paragraphContext === "string" &&
+    typeof value.sourceUrl === "string" &&
+    typeof value.pageTitle === "string" &&
+    typeof value.createdAt === "string" &&
+    typeof value.provider === "string"
+  );
+}
+
 function sortNewestFirst(entries: VocabularyEntry[]): VocabularyEntry[] {
   return [...entries].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 }
@@ -27,35 +48,62 @@ function matchesQuery(entry: VocabularyEntry, query: string): boolean {
     .includes(needle);
 }
 
+function createUniqueId(id: string, entries: VocabularyEntry[]): string {
+  const usedIds = new Set(entries.map((entry) => entry.id));
+  if (!usedIds.has(id)) return id;
+
+  let suffix = 1;
+  let candidate = `${id}-${suffix}`;
+  while (usedIds.has(candidate)) {
+    suffix += 1;
+    candidate = `${id}-${suffix}`;
+  }
+  return candidate;
+}
+
 export function createVocabularyStore(storageArea: StorageAreaLike): VocabularyStore {
+  let writeQueue = Promise.resolve();
+
   async function readEntries(): Promise<VocabularyEntry[]> {
     const result = await storageArea.get(STORAGE_KEY);
     const value = result[STORAGE_KEY];
-    return Array.isArray(value) ? (value as VocabularyEntry[]) : [];
+    return Array.isArray(value) ? value.filter(isVocabularyEntry) : [];
   }
 
   async function writeEntries(entries: VocabularyEntry[]): Promise<void> {
     await storageArea.set({ [STORAGE_KEY]: entries });
   }
 
+  async function runSerialized<T>(operation: () => Promise<T>): Promise<T> {
+    const result = writeQueue.then(operation, operation);
+    writeQueue = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
+  }
+
   return {
     async add(entry: VocabularyEntry): Promise<VocabularyEntry> {
-      const entries = await readEntries();
-      const duplicateIndex = entries.findIndex(
-        (item) => item.selectedText.toLowerCase() === entry.selectedText.toLowerCase() && item.sourceUrl === entry.sourceUrl
-      );
+      return runSerialized(async () => {
+        const entries = await readEntries();
+        const duplicateIndex = entries.findIndex(
+          (item) => item.selectedText.toLowerCase() === entry.selectedText.toLowerCase() && item.sourceUrl === entry.sourceUrl
+        );
 
-      if (duplicateIndex >= 0) {
-        const existing = entries[duplicateIndex]!;
-        const updated = { ...existing, ...entry, id: existing.id, createdAt: existing.createdAt };
-        entries[duplicateIndex] = updated;
+        if (duplicateIndex >= 0) {
+          const existing = entries[duplicateIndex]!;
+          const updated = { ...existing, ...entry, id: existing.id, createdAt: existing.createdAt };
+          entries[duplicateIndex] = updated;
+          await writeEntries(entries);
+          return updated;
+        }
+
+        const entryToAdd = { ...entry, id: createUniqueId(entry.id, entries) };
+        entries.push(entryToAdd);
         await writeEntries(entries);
-        return updated;
-      }
-
-      entries.push(entry);
-      await writeEntries(entries);
-      return entry;
+        return entryToAdd;
+      });
     },
 
     async list(): Promise<VocabularyEntry[]> {
@@ -67,7 +115,9 @@ export function createVocabularyStore(storageArea: StorageAreaLike): VocabularyS
     },
 
     async delete(id: string): Promise<void> {
-      await writeEntries((await readEntries()).filter((entry) => entry.id !== id));
+      await runSerialized(async () => {
+        await writeEntries((await readEntries()).filter((entry) => entry.id !== id));
+      });
     }
   };
 }
