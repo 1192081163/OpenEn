@@ -61,9 +61,20 @@ td {
   border-top: 1px solid #d8dee4;
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
 }
 
 th {
   color: #57606a;
   font-weight: 600;
+}
+
+td a,
+td strong,
+td div {
+  overflow-wrap: anywhere;
+}
+
+.error {
+  color: #cf222e;
 }

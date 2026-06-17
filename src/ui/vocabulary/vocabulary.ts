@@ -3,9 +3,42 @@ import type { ExportFormat, VocabularyEntry } from "../../shared/types";
 
 interface RenderOptions {
   entries: VocabularyEntry[];
+  loadFailed?: boolean;
   onSearch(query: string): void;
   onDelete(id: string): void;
   onExport(format: ExportFormat): void;
+}
+
+interface LoadEntriesResult {
+  entries: VocabularyEntry[];
+  loadFailed: boolean;
+}
+
+type VocabularyRuntimeMessage =
+  | { type: MessageType.ListVocabulary }
+  | { type: MessageType.SearchVocabulary; payload: { query: string } }
+  | { type: MessageType.DeleteVocabulary; payload: { id: string } }
+  | { type: MessageType.ExportVocabulary; payload: { format: ExportFormat } };
+
+type SendMessage = (message: VocabularyRuntimeMessage) => Promise<unknown>;
+
+const LOAD_FAILURE_TEXT = "Unable to load saved words.";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isVocabularyListResponse(value: unknown): value is { ok: true; data: VocabularyEntry[] } {
+  return isRecord(value) && value.ok === true && Array.isArray(value.data);
+}
+
+function getSafeHttpUrl(sourceUrl: string): URL | null {
+  try {
+    const url = new URL(sourceUrl);
+    return url.protocol === "http:" || url.protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
 }
 
 export function renderVocabularyPage(options: RenderOptions): void {
@@ -24,6 +57,21 @@ export function renderVocabularyPage(options: RenderOptions): void {
   }
 
   tbody.replaceChildren();
+  search.oninput = () => options.onSearch(search.value);
+  exportJson.onclick = () => options.onExport("json");
+  exportCsv.onclick = () => options.onExport("csv");
+
+  if (options.loadFailed) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 4;
+    cell.className = "error";
+    cell.textContent = LOAD_FAILURE_TEXT;
+    row.append(cell);
+    tbody.append(row);
+    return;
+  }
+
   for (const entry of options.entries) {
     const row = document.createElement("tr");
 
@@ -38,11 +86,18 @@ export function renderVocabularyPage(options: RenderOptions): void {
     translationCell.textContent = entry.translation;
 
     const sourceCell = document.createElement("td");
-    const source = document.createElement("a");
-    source.rel = "noreferrer";
-    source.href = entry.sourceUrl;
-    source.textContent = entry.pageTitle || entry.sourceUrl;
-    sourceCell.append(source);
+    const sourceText = entry.pageTitle || entry.sourceUrl;
+    const sourceUrl = getSafeHttpUrl(entry.sourceUrl);
+    if (sourceUrl) {
+      const source = document.createElement("a");
+      source.href = sourceUrl.href;
+      source.target = "_blank";
+      source.rel = "noopener noreferrer";
+      source.textContent = sourceText;
+      sourceCell.append(source);
+    } else {
+      sourceCell.textContent = sourceText;
+    }
 
     const actionCell = document.createElement("td");
     const deleteButton = document.createElement("button");
@@ -64,10 +119,6 @@ export function renderVocabularyPage(options: RenderOptions): void {
     row.append(cell);
     tbody.append(row);
   }
-
-  search.oninput = () => options.onSearch(search.value);
-  exportJson.onclick = () => options.onExport("json");
-  exportCsv.onclick = () => options.onExport("csv");
 }
 
 function downloadText(filename: string, text: string, mimeType: string): void {
@@ -80,29 +131,63 @@ function downloadText(filename: string, text: string, mimeType: string): void {
   URL.revokeObjectURL(url);
 }
 
-async function loadEntries(query = ""): Promise<VocabularyEntry[]> {
-  const response = await chrome.runtime.sendMessage(
-    query ? { type: MessageType.SearchVocabulary, payload: { query } } : { type: MessageType.ListVocabulary }
-  );
-  return response?.ok && Array.isArray(response.data) ? (response.data as VocabularyEntry[]) : [];
+async function loadEntries(sendMessage: SendMessage, query = ""): Promise<LoadEntriesResult> {
+  try {
+    const response = await sendMessage(
+      query ? { type: MessageType.SearchVocabulary, payload: { query } } : { type: MessageType.ListVocabulary }
+    );
+    return isVocabularyListResponse(response) ? { entries: response.data, loadFailed: false } : { entries: [], loadFailed: true };
+  } catch {
+    return { entries: [], loadFailed: true };
+  }
 }
 
 async function init(): Promise<void> {
-  async function refresh(query = ""): Promise<void> {
+  await initVocabularyPage({ sendMessage: (message) => chrome.runtime.sendMessage(message) });
+}
+
+export async function initVocabularyPage(options: { sendMessage: SendMessage }): Promise<void> {
+  let requestGeneration = 0;
+
+  function renderState(state: LoadEntriesResult): void {
     renderVocabularyPage({
-      entries: await loadEntries(query),
+      entries: state.entries,
+      loadFailed: state.loadFailed,
       onSearch: (nextQuery) => void refresh(nextQuery),
-      onDelete: async (id) => {
-        await chrome.runtime.sendMessage({ type: MessageType.DeleteVocabulary, payload: { id } });
-        await refresh((document.querySelector<HTMLInputElement>("#search")?.value ?? "").trim());
+      onDelete: (id) => {
+        void handleDelete(id);
       },
-      onExport: async (format) => {
-        const response = await chrome.runtime.sendMessage({ type: MessageType.ExportVocabulary, payload: { format } });
-        if (response?.ok && typeof response.data === "string") {
-          downloadText(`openen-vocabulary.${format}`, response.data, format === "json" ? "application/json" : "text/csv");
-        }
+      onExport: (format) => {
+        void handleExport(format);
       }
     });
+  }
+
+  async function refresh(query = ""): Promise<void> {
+    const generation = ++requestGeneration;
+    const state = await loadEntries(options.sendMessage, query);
+    if (generation !== requestGeneration) return;
+    renderState(state);
+  }
+
+  async function handleDelete(id: string): Promise<void> {
+    try {
+      await options.sendMessage({ type: MessageType.DeleteVocabulary, payload: { id } });
+      await refresh((document.querySelector<HTMLInputElement>("#search")?.value ?? "").trim());
+    } catch {
+      renderState({ entries: [], loadFailed: true });
+    }
+  }
+
+  async function handleExport(format: ExportFormat): Promise<void> {
+    try {
+      const response = await options.sendMessage({ type: MessageType.ExportVocabulary, payload: { format } });
+      if (isRecord(response) && response.ok === true && typeof response.data === "string") {
+        downloadText(`openen-vocabulary.${format}`, response.data, format === "json" ? "application/json" : "text/csv");
+      }
+    } catch {
+      return;
+    }
   }
 
   await refresh();
