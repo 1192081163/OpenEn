@@ -3,7 +3,30 @@ import type { VocabularyEntry } from "../../shared/types";
 
 interface RenderPopupOptions {
   entries: VocabularyEntry[];
+  loadFailed?: boolean;
   openVocabulary(): void;
+}
+
+interface InitPopupOptions {
+  sendMessage(message: { type: MessageType.ListVocabulary }): Promise<unknown>;
+  openOptionsPage(): void;
+}
+
+const LOAD_FAILURE_TEXT = "Unable to load saved words.";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isVocabularyListResponse(value: unknown): value is { ok: true; data: VocabularyEntry[] } {
+  return isRecord(value) && value.ok === true && Array.isArray(value.data);
+}
+
+function appendListMessage(list: HTMLUListElement, text: string, className?: string): void {
+  const item = document.createElement("li");
+  if (className) item.className = className;
+  item.textContent = text;
+  list.append(item);
 }
 
 export function renderPopup(options: RenderPopupOptions): void {
@@ -12,6 +35,13 @@ export function renderPopup(options: RenderPopupOptions): void {
   if (!list || !openButton) return;
 
   list.replaceChildren();
+  openButton.onclick = options.openVocabulary;
+
+  if (options.loadFailed) {
+    appendListMessage(list, LOAD_FAILURE_TEXT, "error");
+    return;
+  }
+
   for (const entry of options.entries.slice(0, 5)) {
     const item = document.createElement("li");
     const word = document.createElement("strong");
@@ -24,20 +54,35 @@ export function renderPopup(options: RenderPopupOptions): void {
   }
 
   if (options.entries.length === 0) {
-    const item = document.createElement("li");
-    item.textContent = "No saved words yet.";
-    list.append(item);
+    appendListMessage(list, "No saved words yet.");
+  }
+}
+
+export async function initPopup(options: InitPopupOptions): Promise<void> {
+  const openVocabulary = () => options.openOptionsPage();
+
+  try {
+    const response = await options.sendMessage({ type: MessageType.ListVocabulary });
+    if (isVocabularyListResponse(response)) {
+      renderPopup({ entries: response.data, openVocabulary });
+      return;
+    }
+  } catch {
+    // Render the same failure state for rejected extension messaging.
   }
 
-  openButton.addEventListener("click", options.openVocabulary);
+  renderPopup({ entries: [], loadFailed: true, openVocabulary });
 }
 
 async function init(): Promise<void> {
-  const response = await chrome.runtime.sendMessage({ type: MessageType.ListVocabulary });
-  const entries = response?.ok && Array.isArray(response.data) ? (response.data as VocabularyEntry[]) : [];
   renderPopup({
-    entries,
+    entries: [],
     openVocabulary: () => chrome.runtime.openOptionsPage()
+  });
+
+  await initPopup({
+    sendMessage: (message) => chrome.runtime.sendMessage(message),
+    openOptionsPage: () => chrome.runtime.openOptionsPage()
   });
 }
 

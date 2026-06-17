@@ -34,9 +34,14 @@ ul {
 li {
   padding: 8px 0;
   border-top: 1px solid #d8dee4;
+  overflow-wrap: anywhere;
 }
 
 .translation {
   color: #57606a;
   margin-top: 2px;
+}
+
+.error {
+  color: #cf222e;
 }
