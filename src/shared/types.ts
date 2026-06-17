@@ -5,6 +5,8 @@ export interface TranslationRequest {
   targetLang: string;
 }
 
+export type TranslationProviderName = "fake" | "deepseek" | "openai" | "external";
+
 export interface TranslationResult {
   selectedText: string;
   translation: string;
@@ -12,7 +14,7 @@ export interface TranslationResult {
   contextualMeaning: string;
   example?: string;
   confidence?: number;
-  provider: "fake" | "openai" | "external";
+  provider: TranslationProviderName;
 }
 
 export interface VocabularyEntry {
