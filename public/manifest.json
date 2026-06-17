@@ -4,6 +4,7 @@
   "description": "Context-aware selection translation and local vocabulary capture.",
   "version": "0.1.0",
   "permissions": ["storage"],
+  "host_permissions": ["https://api.deepseek.com/*"],
   "background": {
     "service_worker": "background/serviceWorker.js",
     "type": "module"

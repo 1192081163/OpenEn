@@ -8,6 +8,7 @@ describe("extension manifest", () => {
 
     expect(manifest.manifest_version).toBe(3);
     expect(manifest.permissions).toContain("storage");
+    expect(manifest.host_permissions).toContain("https://api.deepseek.com/*");
     expect(manifest.background.service_worker).toBe("background/serviceWorker.js");
     expect(manifest.content_scripts[0].matches).toEqual(["http://*/*", "https://*/*"]);
     expect(manifest.content_scripts[0].js).toEqual(["content/contentScript.js"]);
