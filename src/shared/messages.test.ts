@@ -34,4 +34,8 @@ describe("message guards", () => {
     expect(isDeleteVocabularyMessage({ type: MessageType.DeleteVocabulary, payload: { id: "1" } })).toBe(true);
     expect(isExportVocabularyMessage({ type: MessageType.ExportVocabulary, payload: { format: "csv" } })).toBe(true);
   });
+  it("rejects add vocabulary messages with malformed known string fields", () => {
+    expect(isAddVocabularyMessage({ type: MessageType.AddVocabulary, payload: { entry: { selectedText: 123 } } })).toBe(false);
+    expect(isAddVocabularyMessage({ type: MessageType.AddVocabulary, payload: { entry: { translation: true } } })).toBe(false);
+  });
 });

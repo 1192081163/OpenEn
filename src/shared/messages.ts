@@ -54,6 +54,26 @@ function hasString(record: Record<string, unknown>, key: string): boolean {
   return typeof record[key] === "string";
 }
 
+const vocabularyEntryStringFields = [
+  "id",
+  "selectedText",
+  "translation",
+  "partOfSpeech",
+  "contextualMeaning",
+  "example",
+  "paragraphContext",
+  "sourceUrl",
+  "pageTitle",
+  "createdAt",
+  "provider"
+] as const;
+
+function hasValidKnownVocabularyEntryFields(entry: Record<string, unknown>): boolean {
+  return vocabularyEntryStringFields.every(
+    (field) => !Object.prototype.hasOwnProperty.call(entry, field) || typeof entry[field] === "string"
+  );
+}
+
 export function isTranslateSelectionMessage(value: unknown): value is TranslateSelectionMessage {
   if (!isRecord(value) || value.type !== MessageType.TranslateSelection || !isRecord(value.payload)) return false;
   return (
@@ -65,7 +85,13 @@ export function isTranslateSelectionMessage(value: unknown): value is TranslateS
 }
 
 export function isAddVocabularyMessage(value: unknown): value is AddVocabularyMessage {
-  return isRecord(value) && value.type === MessageType.AddVocabulary && isRecord(value.payload) && isRecord(value.payload.entry);
+  return (
+    isRecord(value) &&
+    value.type === MessageType.AddVocabulary &&
+    isRecord(value.payload) &&
+    isRecord(value.payload.entry) &&
+    hasValidKnownVocabularyEntryFields(value.payload.entry)
+  );
 }
 
 export function isListVocabularyMessage(value: unknown): value is ListVocabularyMessage {

@@ -98,7 +98,7 @@ manifest.json
 4. `backgroundServiceWorker` calls `translationProvider.translate(...)`.
 5. `backgroundServiceWorker` returns a structured translation result.
 6. `contentScript` renders the floating popup.
-7. If the user clicks "Add to vocabulary", `contentScript` sends `SAVE_VOCABULARY_ENTRY`.
+7. If the user clicks "Add to vocabulary", `contentScript` sends `ADD_VOCABULARY`.
 8. `backgroundServiceWorker` writes the entry through `vocabularyStore`.
 9. Vocabulary UI reads from `vocabularyStore` and handles search, delete, and export.
 
