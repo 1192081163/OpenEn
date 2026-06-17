@@ -4,7 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["DOM", "ES2022"],
-    "types": ["chrome", "node", "vitest/globals"],
+    "types": ["chrome"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -12,5 +12,6 @@
     "isolatedModules": true,
     "resolveJsonModule": true
   },
-  "include": ["src", "vitest.config.ts", "scripts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
 }

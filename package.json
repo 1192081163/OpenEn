@@ -7,7 +7,7 @@
     "build": "node scripts/build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.303",
