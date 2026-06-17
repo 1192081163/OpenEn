@@ -109,4 +109,27 @@ describe("translation tooltip", () => {
     const panel = tooltipRoot().querySelector("[data-openen-tooltip-panel]") as HTMLElement;
     expect(panel.style.overflowWrap).toBe("anywhere");
   });
+
+  it("keeps very long tooltip content within viewport height near bottom edge", () => {
+    setViewport(360, 180);
+
+    createTranslationTooltip({
+      result: {
+        ...result,
+        selectedText: "selected text ".repeat(80),
+        translation: "translated content ".repeat(120),
+        contextualMeaning: "contextual meaning ".repeat(120)
+      },
+      anchorRect: new DOMRect(20, 164, 40, 12),
+      onSave: vi.fn(),
+      onClose: vi.fn()
+    });
+
+    const host = tooltipHost();
+    const panel = tooltipRoot().querySelector("[data-openen-tooltip-panel]") as HTMLElement;
+
+    expect(Number.parseFloat(host.style.top)).toBeGreaterThanOrEqual(8);
+    expect(panel.style.maxHeight).toBe("164px");
+    expect(panel.style.overflowY).toBe("auto");
+  });
 });

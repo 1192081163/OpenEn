@@ -21,16 +21,28 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function positionHost(host: HTMLElement, anchorRect: DOMRect): void {
+function getViewportHeight(): number {
+  return window.innerHeight || document.documentElement.clientHeight;
+}
+
+function getMaxTooltipHeight(viewportHeight: number): number {
+  return Math.max(0, viewportHeight - VIEWPORT_MARGIN * 2);
+}
+
+function positionHost(host: HTMLElement, anchorRect: DOMRect, tooltipHeight = TOOLTIP_HEIGHT): void {
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+  const viewportHeight = getViewportHeight();
   const width = Math.min(TOOLTIP_WIDTH, Math.max(0, viewportWidth - VIEWPORT_MARGIN * 2));
   const maxLeft = Math.max(VIEWPORT_MARGIN, viewportWidth - width - VIEWPORT_MARGIN);
   const left = clamp(anchorRect.left, VIEWPORT_MARGIN, maxLeft);
+  const maxHeight = getMaxTooltipHeight(viewportHeight);
+  const height = Math.min(Math.max(tooltipHeight, TOOLTIP_HEIGHT), maxHeight);
+  const maxTop = Math.max(VIEWPORT_MARGIN, viewportHeight - height - VIEWPORT_MARGIN);
   const bottomTop = anchorRect.bottom + ANCHOR_GAP;
-  const top = bottomTop + TOOLTIP_HEIGHT > viewportHeight
-    ? Math.max(VIEWPORT_MARGIN, anchorRect.top - TOOLTIP_HEIGHT - ANCHOR_GAP)
+  const preferredTop = bottomTop + height > viewportHeight - VIEWPORT_MARGIN
+    ? anchorRect.top - height - ANCHOR_GAP
     : bottomTop;
+  const top = clamp(preferredTop, VIEWPORT_MARGIN, maxTop);
 
   host.style.setProperty("position", "absolute", "important");
   host.style.setProperty("z-index", "2147483647", "important");
@@ -38,6 +50,7 @@ function positionHost(host: HTMLElement, anchorRect: DOMRect): void {
   host.style.setProperty("left", `${window.scrollX + left}px`, "important");
   host.style.setProperty("width", `${width}px`, "important");
   host.style.setProperty("max-width", `calc(100vw - ${VIEWPORT_MARGIN * 2}px)`, "important");
+  host.style.setProperty("max-height", `${maxHeight}px`, "important");
 }
 
 function button(label: string, attr: string): HTMLButtonElement {
@@ -122,8 +135,11 @@ export function createTranslationTooltip(options: TooltipOptions): HTMLElement {
   `;
 
   const panel = document.createElement("div");
+  const maxTooltipHeight = getMaxTooltipHeight(getViewportHeight());
   panel.setAttribute("data-openen-tooltip-panel", "");
   panel.style.boxSizing = "border-box";
+  panel.style.maxHeight = `${maxTooltipHeight}px`;
+  panel.style.overflowY = "auto";
   panel.style.overflowWrap = "anywhere";
   panel.style.width = "100%";
 
@@ -155,6 +171,7 @@ export function createTranslationTooltip(options: TooltipOptions): HTMLElement {
   panel.append(title, translation, meaning, actions);
   shadow.append(style, panel);
   document.body.append(host);
+  positionHost(host, options.anchorRect, panel.getBoundingClientRect().height || maxTooltipHeight);
 
   return host;
 }
