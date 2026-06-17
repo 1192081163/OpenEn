@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="./vocabulary.css" />
+    <title>OpenEn Vocabulary</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Vocabulary</h1>
+        <div class="actions">
+          <button id="exportJson" type="button">Export JSON</button>
+          <button id="exportCsv" type="button">Export CSV</button>
+        </div>
+      </header>
+      <input id="search" type="search" placeholder="Search saved words" />
+      <table>
+        <thead>
+          <tr>
+            <th>Word</th>
+            <th>Translation</th>
+            <th>Source</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="entries"></tbody>
+      </table>
+    </main>
+    <script type="module" src="./vocabulary.js"></script>
+  </body>
+</html>
