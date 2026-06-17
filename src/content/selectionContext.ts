@@ -7,13 +7,46 @@ function normalizeText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function capContext(text: string): string {
+function capContext(text: string, selectedText?: string): string {
   const normalized = normalizeText(text);
-  return normalized.length > MAX_CONTEXT_LENGTH ? normalized.slice(0, MAX_CONTEXT_LENGTH).trim() : normalized;
+  if (normalized.length <= MAX_CONTEXT_LENGTH) return normalized;
+
+  if (!selectedText) return normalized.slice(0, MAX_CONTEXT_LENGTH).trim();
+
+  const selectedIndex = normalized.indexOf(selectedText);
+  if (selectedIndex < 0) return normalized.slice(0, MAX_CONTEXT_LENGTH).trim();
+
+  const contextBudgetAroundSelection = MAX_CONTEXT_LENGTH - selectedText.length;
+  const idealStart = selectedIndex - Math.floor(contextBudgetAroundSelection / 2);
+  const maxStart = normalized.length - MAX_CONTEXT_LENGTH;
+  const start = Math.min(Math.max(idealStart, 0), maxStart);
+
+  return normalized.slice(start, start + MAX_CONTEXT_LENGTH).trim();
 }
 
 function isIgnoredElement(element: Element): boolean {
   return ["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT"].includes(element.tagName);
+}
+
+function hasIgnoredAncestor(node: Node): boolean {
+  let current: Element | null =
+    node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+
+  while (current && current !== document.documentElement) {
+    if (isIgnoredElement(current)) return true;
+    current = current.parentElement;
+  }
+
+  return false;
+}
+
+function getSourceUrl(): string {
+  try {
+    const url = new URL(window.location.href);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return window.location.href;
+  }
 }
 
 function findContextElement(range: Range, selectedText: string): Element | null {
@@ -40,16 +73,17 @@ export function extractSelectionContextFromRange(range: Range): SelectionPayload
   const selectedText = normalizeText(range.toString());
   if (!selectedText) return null;
   if (selectedText.length > 120) return null;
+  if (hasIgnoredAncestor(range.startContainer) || hasIgnoredAncestor(range.endContainer)) return null;
 
   const contextElement = findContextElement(range, selectedText);
   const paragraphContext = contextElement
-    ? capContext(contextElement.textContent ?? selectedText)
-    : capContext(range.startContainer.textContent ?? selectedText);
+    ? capContext(contextElement.textContent ?? selectedText, selectedText)
+    : capContext(range.startContainer.textContent ?? selectedText, selectedText);
 
   return {
     selectedText,
     paragraphContext,
-    sourceUrl: window.location.href,
+    sourceUrl: getSourceUrl(),
     pageTitle: document.title
   };
 }

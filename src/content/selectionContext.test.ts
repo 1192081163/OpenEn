@@ -35,4 +35,40 @@ describe("selection context extraction", () => {
 
     expect(result?.paragraphContext.length).toBeLessThanOrEqual(1500);
   });
+
+  it("returns null for selections inside textarea elements", () => {
+    document.body.innerHTML = `<textarea>Do not extract this private note.</textarea>`;
+    const text = document.querySelector("textarea")!.firstChild as Text;
+    const result = extractSelectionContextFromRange(selectText(text, "private"));
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null for selections inside script elements", () => {
+    document.body.innerHTML = `<script>const token = "secret";</script>`;
+    const text = document.querySelector("script")!.firstChild as Text;
+    const result = extractSelectionContextFromRange(selectText(text, "secret"));
+
+    expect(result).toBeNull();
+  });
+
+  it("keeps selected text in capped long paragraph context", () => {
+    const selectedText = "needle-term";
+    const longText = `${"context ".repeat(260)}${selectedText} trailing sentence.`;
+    document.body.innerHTML = `<p>${longText}</p>`;
+    const text = document.querySelector("p")!.firstChild as Text;
+    const result = extractSelectionContextFromRange(selectText(text, selectedText));
+
+    expect(result?.paragraphContext.length).toBeLessThanOrEqual(1500);
+    expect(result?.paragraphContext).toContain(selectedText);
+  });
+
+  it("omits query strings and fragments from sourceUrl", () => {
+    window.history.pushState({}, "", "/lesson?token=secret#answer");
+    document.body.innerHTML = `<p>Keep the selected word context.</p>`;
+    const text = document.querySelector("p")!.firstChild as Text;
+    const result = extractSelectionContextFromRange(selectText(text, "selected"));
+
+    expect(result?.sourceUrl).toBe(`${window.location.origin}${window.location.pathname}`);
+  });
 });
