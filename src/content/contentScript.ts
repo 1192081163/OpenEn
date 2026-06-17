@@ -3,42 +3,69 @@ import type { SelectionPayload, TranslationResult } from "../shared/types";
 import { extractSelectionContext } from "./selectionContext";
 import { createTranslationTooltip, removeTranslationTooltip } from "./tooltip";
 
-type SendMessage = (message: unknown) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
+type MessageResponse = { ok: boolean; data?: unknown; error?: string };
+type SendMessage = (message: unknown) => Promise<MessageResponse | undefined>;
+
+interface HandleSelectionOptions {
+  isCurrent?(): boolean;
+}
+
+function hasStringField(record: Record<string, unknown>, field: string): boolean {
+  return typeof record[field] === "string";
+}
 
 function isTranslationResult(value: unknown): value is TranslationResult {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
   return (
-    typeof value === "object" &&
-    value !== null &&
-    "translation" in value &&
-    "contextualMeaning" in value
+    hasStringField(record, "selectedText") &&
+    hasStringField(record, "translation") &&
+    hasStringField(record, "contextualMeaning") &&
+    hasStringField(record, "provider")
   );
+}
+
+function saveVocabulary(
+  payload: SelectionPayload,
+  result: TranslationResult,
+  sendMessage: SendMessage
+): void {
+  void sendMessage({
+    type: MessageType.AddVocabulary,
+    payload: {
+      entry: {
+        ...result,
+        paragraphContext: payload.paragraphContext,
+        sourceUrl: payload.sourceUrl,
+        pageTitle: payload.pageTitle
+      }
+    }
+  }).catch(() => undefined);
 }
 
 export async function handleSelectionPayload(
   payload: SelectionPayload,
   anchorRect: DOMRect,
-  sendMessage: SendMessage
+  sendMessage: SendMessage,
+  options: HandleSelectionOptions = {}
 ): Promise<void> {
-  const response = await sendMessage({ type: MessageType.TranslateSelection, payload });
-  if (!response.ok || !isTranslationResult(response.data)) return;
-  const result = response.data;
+  let response: MessageResponse | undefined;
+  try {
+    response = await sendMessage({ type: MessageType.TranslateSelection, payload });
+  } catch {
+    return;
+  }
 
+  if (!response?.ok || !isTranslationResult(response.data)) return;
+  if (options.isCurrent && !options.isCurrent()) return;
+
+  const result = response.data;
   createTranslationTooltip({
     result,
     anchorRect,
     onClose: removeTranslationTooltip,
     onSave: () => {
-      void sendMessage({
-        type: MessageType.AddVocabulary,
-        payload: {
-          entry: {
-            ...result,
-            paragraphContext: payload.paragraphContext,
-            sourceUrl: payload.sourceUrl,
-            pageTitle: payload.pageTitle
-          }
-        }
-      });
+      saveVocabulary(payload, result, sendMessage);
     }
   });
 }
@@ -49,28 +76,96 @@ function getAnchorRect(selection: Selection): DOMRect | null {
   return rect.width === 0 && rect.height === 0 ? null : rect;
 }
 
-function runtimeSendMessage(message: unknown): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+function runtimeSendMessage(message: unknown): Promise<MessageResponse | undefined> {
   return chrome.runtime.sendMessage(message);
 }
 
-document.addEventListener("selectionchange", () => {
-  window.setTimeout(() => {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      removeTranslationTooltip();
-      return;
+function isCurrentSelection(payload: SelectionPayload): boolean {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed) return false;
+
+  const currentPayload = extractSelectionContext(selection);
+  return (
+    currentPayload?.selectedText === payload.selectedText &&
+    currentPayload.paragraphContext === payload.paragraphContext &&
+    currentPayload.sourceUrl === payload.sourceUrl &&
+    currentPayload.pageTitle === payload.pageTitle
+  );
+}
+
+export function startContentScript(sendMessage: SendMessage = runtimeSendMessage): () => void {
+  let disposed = false;
+  let generation = 0;
+  let debounceTimer: number | undefined;
+
+  const clearDebounce = (): void => {
+    if (debounceTimer !== undefined) {
+      window.clearTimeout(debounceTimer);
+      debounceTimer = undefined;
     }
+  };
 
-    const payload = extractSelectionContext(selection);
-    const anchorRect = getAnchorRect(selection);
-    if (!payload || !anchorRect) return;
+  const invalidate = (): void => {
+    generation += 1;
+    clearDebounce();
+  };
 
-    void handleSelectionPayload(payload, anchorRect, runtimeSendMessage);
-  }, 120);
-});
+  const dismiss = (): void => {
+    invalidate();
+    removeTranslationTooltip();
+  };
 
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") removeTranslationTooltip();
-});
+  const onSelectionChange = (): void => {
+    invalidate();
+    const requestGeneration = generation;
 
-document.addEventListener("scroll", removeTranslationTooltip, true);
+    debounceTimer = window.setTimeout(() => {
+      debounceTimer = undefined;
+      if (disposed || requestGeneration !== generation) return;
+
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) {
+        removeTranslationTooltip();
+        return;
+      }
+
+      const payload = extractSelectionContext(selection);
+      const anchorRect = getAnchorRect(selection);
+      if (!payload || !anchorRect) return;
+
+      void handleSelectionPayload(payload, anchorRect, sendMessage, {
+        isCurrent: () =>
+          !disposed && requestGeneration === generation && isCurrentSelection(payload)
+      });
+    }, 120);
+  };
+
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === "Escape") dismiss();
+  };
+
+  document.addEventListener("selectionchange", onSelectionChange);
+  document.addEventListener("keydown", onKeyDown);
+  document.addEventListener("scroll", dismiss, true);
+
+  return () => {
+    disposed = true;
+    invalidate();
+    removeTranslationTooltip();
+    document.removeEventListener("selectionchange", onSelectionChange);
+    document.removeEventListener("keydown", onKeyDown);
+    document.removeEventListener("scroll", dismiss, true);
+  };
+}
+
+function canAutoStart(): boolean {
+  return (
+    typeof document !== "undefined" &&
+    typeof chrome !== "undefined" &&
+    typeof chrome.runtime?.sendMessage === "function"
+  );
+}
+
+if (canAutoStart()) {
+  startContentScript();
+}
