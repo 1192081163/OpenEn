@@ -66,19 +66,79 @@ function rangeIntersectsIgnoredElement(range: Range): boolean {
   return ignoredElements.some((element) => range.intersectsNode(element));
 }
 
+function collectTextSkippingIgnored(node: Node, parts: string[]): void {
+  if (node.nodeType === Node.ELEMENT_NODE && isIgnoredElement(node as Element)) {
+    return;
+  }
+
+  if (node.nodeType === Node.TEXT_NODE) {
+    parts.push(node.textContent ?? "");
+    return;
+  }
+
+  Array.from(node.childNodes).forEach((child) => {
+    collectTextSkippingIgnored(child, parts);
+  });
+}
+
+function getTextContentSkippingIgnored(node: Node): string {
+  const parts: string[] = [];
+  collectTextSkippingIgnored(node, parts);
+  return parts.join("");
+}
+
+function getTextBeforeRangeStartSkippingIgnored(
+  range: Range,
+  contextElement: Element
+): string {
+  const parts: string[] = [];
+  let foundStart = false;
+
+  const visit = (node: Node): void => {
+    if (foundStart) return;
+
+    if (node.nodeType === Node.ELEMENT_NODE && isIgnoredElement(node as Element)) {
+      return;
+    }
+
+    if (node === range.startContainer) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        parts.push((node.textContent ?? "").slice(0, range.startOffset));
+      } else {
+        Array.from(node.childNodes)
+          .slice(0, range.startOffset)
+          .forEach((child) => {
+            collectTextSkippingIgnored(child, parts);
+          });
+      }
+      foundStart = true;
+      return;
+    }
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      parts.push(node.textContent ?? "");
+      return;
+    }
+
+    Array.from(node.childNodes).forEach(visit);
+  };
+
+  visit(contextElement);
+  return parts.join("");
+}
+
 function getSelectedTextStartInContext(
   range: Range,
   contextElement: Element,
   selectedText: string
 ): number {
-  const beforeSelectionRange = document.createRange();
-  beforeSelectionRange.selectNodeContents(contextElement);
-  beforeSelectionRange.setEnd(range.startContainer, range.startOffset);
-
-  const normalizedThroughSelection = normalizeText(
-    `${beforeSelectionRange.toString()}${range.toString()}`
+  const textBeforeSelection = getTextBeforeRangeStartSkippingIgnored(
+    range,
+    contextElement
   );
-  beforeSelectionRange.detach();
+  const normalizedThroughSelection = normalizeText(
+    `${textBeforeSelection}${range.toString()}`
+  );
 
   return Math.max(normalizedThroughSelection.length - selectedText.length, 0);
 }
@@ -94,7 +154,7 @@ function findContextElement(range: Range, selectedText: string): Element | null 
   let current: Element | null = startElement;
   while (current && current !== document.documentElement) {
     if (!isIgnoredElement(current) && current.matches(CONTAINER_SELECTOR)) {
-      const text = normalizeText(current.textContent ?? "");
+      const text = normalizeText(getTextContentSkippingIgnored(current));
       if (text.includes(selectedText) && text.length >= selectedText.length) return current;
     }
     current = current.parentElement;
@@ -112,11 +172,14 @@ export function extractSelectionContextFromRange(range: Range): SelectionPayload
   const contextElement = findContextElement(range, selectedText);
   const paragraphContext = contextElement
     ? capContext(
-        contextElement.textContent ?? selectedText,
+        getTextContentSkippingIgnored(contextElement) || selectedText,
         selectedText,
         getSelectedTextStartInContext(range, contextElement, selectedText)
       )
-    : capContext(range.startContainer.textContent ?? selectedText, selectedText);
+    : capContext(
+        getTextContentSkippingIgnored(range.startContainer) || selectedText,
+        selectedText
+      );
 
   return {
     selectedText,

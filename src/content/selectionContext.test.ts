@@ -68,6 +68,21 @@ describe("selection context extraction", () => {
     expect(result).toBeNull();
   });
 
+  it("omits ignored sibling text from paragraph context", () => {
+    document.body.innerHTML = `
+      <div>
+        Visible selected text.
+        <script>const token = "secret";</script>
+      </div>
+    `;
+    const text = document.querySelector("div")!.firstChild as Text;
+    const result = extractSelectionContextFromRange(selectText(text, "selected"));
+
+    expect(result?.paragraphContext).toContain("Visible selected text.");
+    expect(result?.paragraphContext).not.toContain("secret");
+    expect(result?.paragraphContext).not.toContain("token");
+  });
+
   it("returns null for selections spanning ignored elements", () => {
     document.body.innerHTML = `
       <div>
