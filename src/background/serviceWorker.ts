@@ -12,7 +12,8 @@ const handleMessage = createBackgroundHandler({
       return createTranslationProviderFromSettings(settings).translate(request);
     }
   },
-  store: createChromeVocabularyStore()
+  store: createChromeVocabularyStore(),
+  settingsStore
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

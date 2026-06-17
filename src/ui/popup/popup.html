@@ -7,12 +7,27 @@
   </head>
   <body>
     <main>
-      <header>
-        <strong>OpenEn</strong>
-        <button id="openVocabulary" type="button">Vocabulary</button>
-      </header>
-      <ul id="recentWords"></ul>
-    </main>
+    <header>
+      <strong>OpenEn</strong>
+      <button id="openVocabulary" type="button">Vocabulary</button>
+    </header>
+    <form id="translationSettings" autocomplete="off">
+      <div id="providerStatus">Local Chinese fallback</div>
+      <label>
+        DeepSeek API key
+        <input id="deepseekApiKey" type="password" placeholder="sk-..." />
+      </label>
+      <label>
+        Model
+        <input id="deepseekModel" type="text" value="deepseek-v4-flash" />
+      </label>
+      <div class="settings-actions">
+        <button id="saveDeepSeek" type="submit">Save</button>
+        <button id="clearDeepSeek" type="button">Clear</button>
+      </div>
+    </form>
+    <ul id="recentWords"></ul>
+  </main>
     <script type="module" src="./popup.js"></script>
   </body>
 </html>

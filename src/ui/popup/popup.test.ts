@@ -8,7 +8,7 @@ const entries: VocabularyEntry[] = [
     selectedText: "lead",
     translation: "lead as guide",
     contextualMeaning: "guide",
-    paragraphContext: "She will lead the review.",
+    paragraphContext: "She will lead review.",
     sourceUrl: "https://example.com",
     pageTitle: "Example",
     createdAt: "2026-06-17T00:00:00.000Z",
@@ -16,16 +16,37 @@ const entries: VocabularyEntry[] = [
   }
 ];
 
+function renderPopupShell(): void {
+  document.body.innerHTML = `
+    <main>
+      <button id="openVocabulary" type="button"></button>
+      <form id="translationSettings">
+        <span id="providerStatus"></span>
+        <input id="deepseekApiKey" />
+        <input id="deepseekModel" />
+        <button id="saveDeepSeek" type="submit"></button>
+        <button id="clearDeepSeek" type="button"></button>
+      </form>
+      <ul id="recentWords"></ul>
+    </main>
+  `;
+}
+
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe("popup UI", () => {
   beforeEach(() => {
-    document.body.innerHTML = `<main><button id="openVocabulary"></button><ul id="recentWords"></ul></main>`;
+    renderPopupShell();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("renders recent words and opens vocabulary page", () => {
+  it("renders recent words and opens the vocabulary page", () => {
     const openVocabulary = vi.fn();
     renderPopup({ entries, openVocabulary });
 
@@ -58,6 +79,57 @@ describe("popup UI", () => {
 
     expect(document.body.textContent).toContain("Unable to load saved words.");
     expect(document.body.textContent).not.toContain("No saved words yet.");
+  });
+
+  it("renders provider settings and saves deepseek key", async () => {
+    const sendMessage = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, data: entries })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { provider: "local", deepseek: { hasApiKey: false, model: "deepseek-v4-flash", apiKey: "" } }
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { provider: "deepseek", deepseek: { hasApiKey: true, model: "deepseek-v4-flash", apiKey: "" } }
+      });
+
+    await initPopup({ sendMessage, openOptionsPage: vi.fn() });
+
+    (document.querySelector("#deepseekApiKey") as HTMLInputElement).value = "sk-test";
+    (document.querySelector("#deepseekModel") as HTMLInputElement).value = "deepseek-v4-flash";
+    (document.querySelector("#translationSettings") as HTMLFormElement).dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true })
+    );
+    await flushMicrotasks();
+
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: MessageType.SaveDeepSeekSettings,
+      payload: { apiKey: "sk-test", model: "deepseek-v4-flash" }
+    });
+    expect(document.body.textContent).toContain("DeepSeek enabled");
+    expect((document.querySelector("#deepseekApiKey") as HTMLInputElement).value).toBe("");
+  });
+
+  it("clears deepseek settings", async () => {
+    const sendMessage = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, data: entries })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { provider: "deepseek", deepseek: { hasApiKey: true, model: "deepseek-v4-flash", apiKey: "" } }
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { provider: "local", deepseek: { hasApiKey: false, model: "deepseek-v4-flash", apiKey: "" } }
+      });
+
+    await initPopup({ sendMessage, openOptionsPage: vi.fn() });
+    (document.querySelector("#clearDeepSeek") as HTMLButtonElement).click();
+    await flushMicrotasks();
+
+    expect(sendMessage).toHaveBeenCalledWith({ type: MessageType.ClearDeepSeekSettings });
+    expect(document.body.textContent).toContain("Local Chinese fallback");
   });
 
   it("does not auto-start with partial chrome runtime globals", async () => {

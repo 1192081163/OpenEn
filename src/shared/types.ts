@@ -38,4 +38,13 @@ export interface SelectionPayload {
   pageTitle: string;
 }
 
+export interface TranslationSettingsView {
+  provider: "local" | "deepseek";
+  deepseek: {
+    hasApiKey: boolean;
+    apiKey: "";
+    model: string;
+  };
+}
+
 export type ExportFormat = "json" | "csv";

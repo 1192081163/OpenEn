@@ -1,4 +1,4 @@
-import type { ExportFormat, SelectionPayload, VocabularyEntry } from "./types";
+import type { ExportFormat, SelectionPayload, TranslationSettingsView, VocabularyEntry } from "./types";
 
 export enum MessageType {
   TranslateSelection = "TRANSLATE_SELECTION",
@@ -6,7 +6,10 @@ export enum MessageType {
   ListVocabulary = "LIST_VOCABULARY",
   SearchVocabulary = "SEARCH_VOCABULARY",
   DeleteVocabulary = "DELETE_VOCABULARY",
-  ExportVocabulary = "EXPORT_VOCABULARY"
+  ExportVocabulary = "EXPORT_VOCABULARY",
+  GetTranslationSettings = "GET_TRANSLATION_SETTINGS",
+  SaveDeepSeekSettings = "SAVE_DEEPSEEK_SETTINGS",
+  ClearDeepSeekSettings = "CLEAR_DEEPSEEK_SETTINGS"
 }
 
 export interface TranslateSelectionMessage {
@@ -38,13 +41,29 @@ export interface ExportVocabularyMessage {
   payload: { format: ExportFormat };
 }
 
+export interface GetTranslationSettingsMessage {
+  type: MessageType.GetTranslationSettings;
+}
+
+export interface SaveDeepSeekSettingsMessage {
+  type: MessageType.SaveDeepSeekSettings;
+  payload: { apiKey: string; model?: string };
+}
+
+export interface ClearDeepSeekSettingsMessage {
+  type: MessageType.ClearDeepSeekSettings;
+}
+
 export type OpenEnMessage =
   | TranslateSelectionMessage
   | AddVocabularyMessage
   | ListVocabularyMessage
   | SearchVocabularyMessage
   | DeleteVocabularyMessage
-  | ExportVocabularyMessage;
+  | ExportVocabularyMessage
+  | GetTranslationSettingsMessage
+  | SaveDeepSeekSettingsMessage
+  | ClearDeepSeekSettingsMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -52,6 +71,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function hasString(record: Record<string, unknown>, key: string): boolean {
   return typeof record[key] === "string";
+}
+
+function hasOptionalString(record: Record<string, unknown>, key: string): boolean {
+  return !Object.prototype.hasOwnProperty.call(record, key) || typeof record[key] === "string";
 }
 
 const vocabularyEntryStringFields = [
@@ -75,8 +98,10 @@ function hasValidKnownVocabularyEntryFields(entry: Record<string, unknown>): boo
 }
 
 export function isTranslateSelectionMessage(value: unknown): value is TranslateSelectionMessage {
-  if (!isRecord(value) || value.type !== MessageType.TranslateSelection || !isRecord(value.payload)) return false;
   return (
+    isRecord(value) &&
+    value.type === MessageType.TranslateSelection &&
+    isRecord(value.payload) &&
     hasString(value.payload, "selectedText") &&
     hasString(value.payload, "paragraphContext") &&
     hasString(value.payload, "sourceUrl") &&
@@ -112,5 +137,34 @@ export function isExportVocabularyMessage(value: unknown): value is ExportVocabu
     value.type === MessageType.ExportVocabulary &&
     isRecord(value.payload) &&
     (value.payload.format === "json" || value.payload.format === "csv")
+  );
+}
+
+export function isGetTranslationSettingsMessage(value: unknown): value is GetTranslationSettingsMessage {
+  return isRecord(value) && value.type === MessageType.GetTranslationSettings;
+}
+
+export function isSaveDeepSeekSettingsMessage(value: unknown): value is SaveDeepSeekSettingsMessage {
+  return (
+    isRecord(value) &&
+    value.type === MessageType.SaveDeepSeekSettings &&
+    isRecord(value.payload) &&
+    hasString(value.payload, "apiKey") &&
+    hasOptionalString(value.payload, "model")
+  );
+}
+
+export function isClearDeepSeekSettingsMessage(value: unknown): value is ClearDeepSeekSettingsMessage {
+  return isRecord(value) && value.type === MessageType.ClearDeepSeekSettings;
+}
+
+export function isTranslationSettingsView(value: unknown): value is TranslationSettingsView {
+  return (
+    isRecord(value) &&
+    (value.provider === "local" || value.provider === "deepseek") &&
+    isRecord(value.deepseek) &&
+    typeof value.deepseek.hasApiKey === "boolean" &&
+    value.deepseek.apiKey === "" &&
+    typeof value.deepseek.model === "string"
   );
 }

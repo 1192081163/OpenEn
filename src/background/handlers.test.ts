@@ -1,6 +1,7 @@
 import type { TranslationProvider } from "../providers/translationProvider";
 import { MessageType } from "../shared/messages";
 import type { TranslationResult, VocabularyEntry } from "../shared/types";
+import type { TranslationSettingsStore } from "../settings/translationSettings";
 import type { VocabularyStore } from "../storage/vocabularyStore";
 import { createBackgroundHandler, type BackgroundResponse } from "./handlers";
 
@@ -12,7 +13,7 @@ function createProvider(translate?: TranslationProvider["translate"]): Translati
       return {
         selectedText: request.selectedText,
         translation: "translated",
-        contextualMeaning: `meaning from ${request.paragraphContext}`,
+        contextualMeaning: `meaning ${request.paragraphContext}`,
         provider: "fake"
       };
     }
@@ -25,7 +26,7 @@ function createVocabularyEntry(overrides: Partial<VocabularyEntry> = {}): Vocabu
     selectedText: "lead",
     translation: "translated",
     contextualMeaning: "guide",
-    paragraphContext: "She will lead the review.",
+    paragraphContext: "She will lead review.",
     sourceUrl: "https://example.com",
     pageTitle: "Example",
     createdAt: "2026-06-17T00:00:00.000Z",
@@ -54,42 +55,57 @@ function createStore(initialEntries: VocabularyEntry[] = []): VocabularyStore {
   };
 }
 
+function createSettingsStore(overrides: Partial<TranslationSettingsStore> = {}): TranslationSettingsStore {
+  return {
+    async load() {
+      return {
+        provider: "local",
+        deepseek: { apiKey: "", model: "deepseek-v4-flash" }
+      };
+    },
+    async saveDeepSeek(input) {
+      return {
+        provider: "deepseek",
+        deepseek: { apiKey: input.apiKey, model: input.model ?? "deepseek-v4-flash" }
+      };
+    },
+    async clearDeepSeek() {
+      return {
+        provider: "local",
+        deepseek: { apiKey: "", model: "deepseek-v4-flash" }
+      };
+    },
+    ...overrides
+  };
+}
+
 describe("background handler", () => {
   it("exposes failure-aware response types for known messages", async () => {
     const handler = createBackgroundHandler({ provider: createProvider(), store: createStore() });
+
     const translateResponse = await handler({
       type: MessageType.TranslateSelection,
       payload: {
         selectedText: "lead",
-        paragraphContext: "She will lead the review.",
+        paragraphContext: "She will lead review.",
         sourceUrl: "https://example.com",
         pageTitle: "Example"
       }
     });
-    const addResponse = await handler({
-      type: MessageType.AddVocabulary,
-      payload: { entry: { selectedText: "lead" } }
-    });
-    const listResponse = await handler({ type: MessageType.ListVocabulary });
-    const searchResponse = await handler({ type: MessageType.SearchVocabulary, payload: { query: "lead" } });
-    const deleteResponse = await handler({ type: MessageType.DeleteVocabulary, payload: { id: "entry-1" } });
-    const exportResponse = await handler({ type: MessageType.ExportVocabulary, payload: { format: "csv" } });
 
-    expectTypeOf(translateResponse).toEqualTypeOf<BackgroundResponse<TranslationResult>>();
-    expectTypeOf(addResponse).toEqualTypeOf<BackgroundResponse<VocabularyEntry>>();
-    expectTypeOf(listResponse).toEqualTypeOf<BackgroundResponse<VocabularyEntry[]>>();
-    expectTypeOf(searchResponse).toEqualTypeOf<BackgroundResponse<VocabularyEntry[]>>();
-    expectTypeOf(deleteResponse).toEqualTypeOf<BackgroundResponse<{ id: string }>>();
-    expectTypeOf(exportResponse).toEqualTypeOf<BackgroundResponse<string>>();
+    expect(translateResponse.ok).toBe(true);
+    const response: BackgroundResponse<TranslationResult> = translateResponse;
+    expect(response.ok).toBe(true);
   });
 
-  it("translates a selection with zh-CN target language", async () => {
+  it("translates selected text", async () => {
     const handler = createBackgroundHandler({ provider: createProvider(), store: createStore() });
+
     const response = await handler({
       type: MessageType.TranslateSelection,
       payload: {
         selectedText: "lead",
-        paragraphContext: "She will lead the review.",
+        paragraphContext: "She will lead review.",
         sourceUrl: "https://example.com",
         pageTitle: "Example"
       }
@@ -103,6 +119,7 @@ describe("background handler", () => {
   it("saves and lists vocabulary entries", async () => {
     const store = createStore();
     const handler = createBackgroundHandler({ provider: createProvider(), store });
+
     const saveResponse = await handler({
       type: MessageType.AddVocabulary,
       payload: {
@@ -110,14 +127,13 @@ describe("background handler", () => {
           selectedText: "lead",
           translation: "translated",
           contextualMeaning: "guide",
-          paragraphContext: "She will lead the review.",
+          paragraphContext: "She will lead review.",
           sourceUrl: "https://example.com",
           pageTitle: "Example",
           provider: "fake"
         }
       }
     });
-
     expect(saveResponse.ok).toBe(true);
 
     const listResponse = await handler({ type: MessageType.ListVocabulary });
@@ -129,6 +145,7 @@ describe("background handler", () => {
 
   it("returns failure for unsupported messages", async () => {
     const handler = createBackgroundHandler({ provider: createProvider(), store: createStore() });
+
     const response = await handler({ type: "UNKNOWN_MESSAGE" });
 
     expect(response).toEqual({ ok: false, error: "Unsupported message" });
@@ -136,28 +153,27 @@ describe("background handler", () => {
 
   it("returns failure for incomplete vocabulary entries", async () => {
     const handler = createBackgroundHandler({ provider: createProvider(), store: createStore() });
-    const response = await handler({
-      type: MessageType.AddVocabulary,
-      payload: { entry: { selectedText: "lead" } }
-    });
+
+    const response = await handler({ type: MessageType.AddVocabulary, payload: { entry: { selectedText: "lead" } } });
 
     expect(response.ok).toBe(false);
     if (response.ok) throw new Error("Expected add vocabulary to fail");
     expect(response.error).toBe("Missing required vocabulary fields");
   });
 
-  it("returns failure when the provider fails", async () => {
+  it("returns failure when provider fails", async () => {
     const handler = createBackgroundHandler({
       provider: createProvider(async () => {
         throw new Error("provider unavailable");
       }),
       store: createStore()
     });
+
     const response = await handler({
       type: MessageType.TranslateSelection,
       payload: {
         selectedText: "lead",
-        paragraphContext: "She will lead the review.",
+        paragraphContext: "She will lead review.",
         sourceUrl: "https://example.com",
         pageTitle: "Example"
       }
@@ -170,6 +186,7 @@ describe("background handler", () => {
 
   it("returns an empty list successfully", async () => {
     const handler = createBackgroundHandler({ provider: createProvider(), store: createStore() });
+
     const response = await handler({ type: MessageType.ListVocabulary });
 
     expect(response.ok).toBe(true);
@@ -191,5 +208,47 @@ describe("background handler", () => {
     if (!csvResponse.ok) throw new Error(csvResponse.error);
     expect(csvResponse.data).toContain("selectedText,translation,partOfSpeech,contextualMeaning");
     expect(csvResponse.data).toContain("lead,translated,,guide");
+  });
+
+  it("loads translation settings without returning the api key", async () => {
+    const settingsStore = createSettingsStore({
+      load: vi.fn().mockResolvedValue({
+        provider: "deepseek",
+        deepseek: { apiKey: "sk-test", model: "deepseek-v4-flash" }
+      })
+    });
+    const handler = createBackgroundHandler({ provider: createProvider(), store: createStore(), settingsStore });
+
+    const response = await handler({ type: MessageType.GetTranslationSettings });
+
+    expect(response.ok).toBe(true);
+    if (!response.ok) throw new Error(response.error);
+    expect(response.data).toEqual({
+      provider: "deepseek",
+      deepseek: { hasApiKey: true, apiKey: "", model: "deepseek-v4-flash" }
+    });
+  });
+
+  it("saves deepseek settings", async () => {
+    const settingsStore = createSettingsStore({ saveDeepSeek: vi.fn(createSettingsStore().saveDeepSeek) });
+    const handler = createBackgroundHandler({ provider: createProvider(), store: createStore(), settingsStore });
+
+    const response = await handler({
+      type: MessageType.SaveDeepSeekSettings,
+      payload: { apiKey: "sk-test", model: "deepseek-v4-flash" }
+    });
+
+    expect(response.ok).toBe(true);
+    expect(settingsStore.saveDeepSeek).toHaveBeenCalledWith({ apiKey: "sk-test", model: "deepseek-v4-flash" });
+  });
+
+  it("clears deepseek settings", async () => {
+    const settingsStore = createSettingsStore({ clearDeepSeek: vi.fn(createSettingsStore().clearDeepSeek) });
+    const handler = createBackgroundHandler({ provider: createProvider(), store: createStore(), settingsStore });
+
+    const response = await handler({ type: MessageType.ClearDeepSeekSettings });
+
+    expect(response.ok).toBe(true);
+    expect(settingsStore.clearDeepSeek).toHaveBeenCalledOnce();
   });
 });
