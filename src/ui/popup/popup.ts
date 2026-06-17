@@ -86,6 +86,14 @@ async function init(): Promise<void> {
   });
 }
 
-if (typeof chrome !== "undefined") {
+function canAutoStartPopup(): boolean {
+  return (
+    typeof chrome !== "undefined" &&
+    typeof chrome.runtime?.sendMessage === "function" &&
+    typeof chrome.runtime?.openOptionsPage === "function"
+  );
+}
+
+if (canAutoStartPopup()) {
   void init();
 }

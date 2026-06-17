@@ -21,6 +21,10 @@ describe("popup UI", () => {
     document.body.innerHTML = `<main><button id="openVocabulary"></button><ul id="recentWords"></ul></main>`;
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("renders recent words and opens vocabulary page", () => {
     const openVocabulary = vi.fn();
     renderPopup({ entries, openVocabulary });
@@ -54,6 +58,16 @@ describe("popup UI", () => {
 
     expect(document.body.textContent).toContain("Unable to load saved words.");
     expect(document.body.textContent).not.toContain("No saved words yet.");
+  });
+
+  it("does not auto-start with partial chrome runtime globals", async () => {
+    vi.resetModules();
+    vi.stubGlobal("chrome", { runtime: {} });
+
+    await import("./popup");
+
+    expect(document.body.textContent).not.toContain("Unable to load saved words.");
+    expect(() => (document.querySelector("#openVocabulary") as HTMLButtonElement).click()).not.toThrow();
   });
 
   it("does not duplicate open vocabulary handler across renders", () => {
