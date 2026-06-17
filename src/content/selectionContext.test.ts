@@ -132,6 +132,25 @@ describe("selection context extraction", () => {
     expect(result?.paragraphContext).not.toContain(beginningMarker);
   });
 
+  it("centers capped fallback context on the actual repeated selection occurrence", () => {
+    const selectedText = "fallback-target";
+    const beginningMarker = "FALLBACK_BEGINNING_MARKER";
+    const endMarker = "FALLBACK_NEAR_END_MARKER";
+    const longText = `${beginningMarker} ${selectedText} ${"filler ".repeat(
+      260
+    )}${endMarker} ${selectedText} trailing sentence.`;
+    document.body.innerHTML = `<span>${longText}</span>`;
+    const text = document.querySelector("span")!.firstChild as Text;
+    const result = extractSelectionContextFromRange(
+      selectTextOccurrence(text, selectedText, 1)
+    );
+
+    expect(result?.paragraphContext.length).toBeLessThanOrEqual(1500);
+    expect(result?.paragraphContext).toContain(selectedText);
+    expect(result?.paragraphContext).toContain(endMarker);
+    expect(result?.paragraphContext).not.toContain(beginningMarker);
+  });
+
   it("uses the current page URL as sourceUrl", () => {
     window.history.pushState({}, "", "/lesson?token=secret#answer");
     document.body.innerHTML = `<p>Keep the selected word context.</p>`;

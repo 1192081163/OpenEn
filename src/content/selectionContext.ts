@@ -127,6 +127,18 @@ function getTextBeforeRangeStartSkippingIgnored(
   return parts.join("");
 }
 
+function getSelectedTextStartAfterNormalization(
+  textBeforeSelection: string,
+  selectionText: string,
+  selectedText: string
+): number {
+  const normalizedThroughSelection = normalizeText(
+    `${textBeforeSelection}${selectionText}`
+  );
+
+  return Math.max(normalizedThroughSelection.length - selectedText.length, 0);
+}
+
 function getSelectedTextStartInContext(
   range: Range,
   contextElement: Element,
@@ -136,11 +148,47 @@ function getSelectedTextStartInContext(
     range,
     contextElement
   );
-  const normalizedThroughSelection = normalizeText(
-    `${textBeforeSelection}${range.toString()}`
-  );
 
-  return Math.max(normalizedThroughSelection.length - selectedText.length, 0);
+  return getSelectedTextStartAfterNormalization(
+    textBeforeSelection,
+    range.toString(),
+    selectedText
+  );
+}
+
+function getSelectedTextStartInFallback(
+  range: Range,
+  selectedText: string
+): number | undefined {
+  if (range.startContainer.nodeType === Node.TEXT_NODE) {
+    const textBeforeSelection = (range.startContainer.textContent ?? "").slice(
+      0,
+      range.startOffset
+    );
+
+    return getSelectedTextStartAfterNormalization(
+      textBeforeSelection,
+      range.toString(),
+      selectedText
+    );
+  }
+
+  if (range.startContainer.nodeType === Node.ELEMENT_NODE) {
+    const parts: string[] = [];
+    Array.from(range.startContainer.childNodes)
+      .slice(0, range.startOffset)
+      .forEach((child) => {
+        collectTextSkippingIgnored(child, parts);
+      });
+
+    return getSelectedTextStartAfterNormalization(
+      parts.join(""),
+      range.toString(),
+      selectedText
+    );
+  }
+
+  return undefined;
 }
 
 function findContextElement(range: Range, selectedText: string): Element | null {
@@ -178,7 +226,8 @@ export function extractSelectionContextFromRange(range: Range): SelectionPayload
       )
     : capContext(
         getTextContentSkippingIgnored(range.startContainer) || selectedText,
-        selectedText
+        selectedText,
+        getSelectedTextStartInFallback(range, selectedText)
       );
 
   return {
