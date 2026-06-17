@@ -105,6 +105,9 @@ export function createDeepSeekTranslationProvider(options: DeepSeekProviderOptio
       const parsed = parseDeepSeekContent(content);
       const translation = optionalString(parsed.translation);
       const contextualMeaning = optionalString(parsed.contextualMeaning);
+      const partOfSpeech = optionalString(parsed.partOfSpeech);
+      const example = optionalString(parsed.example);
+      const confidence = clampConfidence(parsed.confidence);
 
       if (!translation || !contextualMeaning) {
         throw new Error("DeepSeek response missing required fields");
@@ -113,10 +116,10 @@ export function createDeepSeekTranslationProvider(options: DeepSeekProviderOptio
       return {
         selectedText: request.selectedText,
         translation,
-        partOfSpeech: optionalString(parsed.partOfSpeech),
         contextualMeaning,
-        example: optionalString(parsed.example),
-        confidence: clampConfidence(parsed.confidence),
+        ...(partOfSpeech ? { partOfSpeech } : {}),
+        ...(example ? { example } : {}),
+        ...(confidence !== undefined ? { confidence } : {}),
         provider: "deepseek"
       };
     }
