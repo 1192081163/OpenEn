@@ -115,6 +115,27 @@ describe("vocabulary store", () => {
     expect((await store.list()).map((item) => item.id)).toEqual(["new"]);
   });
 
+  it("keeps stored entries missing optional vocabulary fields", async () => {
+    const { partOfSpeech: _partOfSpeech, example: _example, ...withoutOptionalFields } = entry({
+      id: "without-optional",
+      selectedText: "optional"
+    });
+    const store = createVocabularyStore(
+      createMemoryStorage([
+        withoutOptionalFields,
+        { ...entry({ id: "invalid-part-of-speech" }), partOfSpeech: 42 },
+        { ...entry({ id: "invalid-example" }), example: false }
+      ])
+    );
+
+    const entries = await store.list();
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.id).toBe("without-optional");
+    expect(entries[0]).not.toHaveProperty("partOfSpeech");
+    expect(entries[0]).not.toHaveProperty("example");
+  });
+
   it("keeps different entries with duplicate ids by assigning a suffix", async () => {
     const store = createVocabularyStore(createMemoryStorage());
 

@@ -18,15 +18,19 @@ function isStringRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === "string";
+}
+
 function isVocabularyEntry(value: unknown): value is VocabularyEntry {
   if (!isStringRecord(value)) return false;
   return (
     typeof value.id === "string" &&
     typeof value.selectedText === "string" &&
     typeof value.translation === "string" &&
-    typeof value.partOfSpeech === "string" &&
+    isOptionalString(value.partOfSpeech) &&
     typeof value.contextualMeaning === "string" &&
-    typeof value.example === "string" &&
+    isOptionalString(value.example) &&
     typeof value.paragraphContext === "string" &&
     typeof value.sourceUrl === "string" &&
     typeof value.pageTitle === "string" &&
