@@ -38,6 +38,12 @@ function saveButton(): HTMLButtonElement {
   return save as HTMLButtonElement;
 }
 
+function closeButton(): HTMLButtonElement {
+  const close = tooltipRoot().querySelector("[data-openen-close]");
+  expect(close).toBeInstanceOf(HTMLButtonElement);
+  return close as HTMLButtonElement;
+}
+
 afterEach(() => {
   document.body.innerHTML = "";
   document.querySelectorAll("[data-openen-test-style]").forEach((node) => node.remove());
@@ -50,6 +56,8 @@ describe("translation tooltip", () => {
     createTranslationTooltip({ result, anchorRect: new DOMRect(20, 30, 40, 12), onSave, onClose: vi.fn() });
 
     expect(tooltipRoot().textContent).toContain("lead as guide");
+    expect(saveButton().textContent).toBe("加入生词本");
+    expect(closeButton().textContent).toBe("关闭");
     saveButton().click();
     expect(onSave).toHaveBeenCalledOnce();
   });

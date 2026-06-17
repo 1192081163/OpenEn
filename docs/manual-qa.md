@@ -36,14 +36,14 @@ Expected result: popup appears near the selected text and shows `带领；主持
 1. Open the extension popup.
 2. Enter a DeepSeek API key.
 3. Keep model `deepseek-v4-flash`.
-4. Click Save.
+4. 点击“保存”。
 5. Select `lead` inside paragraph `She will lead design review tomorrow`.
 
 Expected result: popup shows a Chinese translation and contextual Chinese explanation from DeepSeek.
 
 ## Save Vocabulary
 
-1. Click "Add to vocabulary" in the selection popup.
+1. 点击划词弹窗里的“加入生词本”。
 2. Open the extension popup.
 3. Click "Vocabulary".
 
@@ -52,8 +52,8 @@ Expected result: saved word appears in the vocabulary page.
 ## Manage And Export
 
 1. Search saved word.
-2. Export JSON.
-3. Export CSV.
+2. 点击“导出 JSON”。
+3. 点击“导出 CSV”。
 4. Delete saved word.
 
 Expected result: search filters entries, both exported files download, both exported files contain `lead` and a Chinese translation, and delete removes the row.
@@ -61,7 +61,7 @@ Expected result: search filters entries, both exported files download, both expo
 ## Clear DeepSeek Key
 
 1. Open the extension popup.
-2. Click Clear.
+2. 点击“清除”。
 3. Select `lead` again on the test page.
 
 Expected result: OpenEn returns to local Chinese fallback mode and shows `带领；主持`.

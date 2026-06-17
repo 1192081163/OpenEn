@@ -55,7 +55,7 @@ function renderSettings(settings: TranslationSettingsView): void {
   if (!elements) return;
 
   elements.status.textContent =
-    settings.provider === "deepseek" && settings.deepseek.hasApiKey ? "DeepSeek enabled" : "Local Chinese fallback";
+    settings.provider === "deepseek" && settings.deepseek.hasApiKey ? "DeepSeek 已启用" : "本地中文模式";
   elements.model.value = settings.deepseek.model || DEFAULT_MODEL;
   elements.apiKey.value = "";
 }

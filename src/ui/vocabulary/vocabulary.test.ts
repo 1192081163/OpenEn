@@ -66,7 +66,9 @@ describe("vocabulary page", () => {
     renderVocabularyPage({ entries, onDelete, onSearch: vi.fn(), onExport: vi.fn() });
 
     expect(document.body.textContent).toContain("lead");
-    (document.querySelector("[data-delete-id='1']") as HTMLButtonElement).click();
+    const deleteButton = document.querySelector("[data-delete-id='1']") as HTMLButtonElement;
+    expect(deleteButton.textContent).toBe("删除");
+    deleteButton.click();
     expect(onDelete).toHaveBeenCalledWith("1");
   });
 
@@ -220,8 +222,10 @@ describe("vocabulary page", () => {
     const html = readFileSync("src/ui/vocabulary/vocabulary.html", "utf8");
     const css = readFileSync("src/ui/vocabulary/vocabulary.css", "utf8");
 
-    expect(html).toContain('aria-label="Search saved words"');
-    expect(html).toContain('aria-label="Vocabulary actions"');
+    expect(html).toContain('aria-label="搜索生词"');
+    expect(html).toContain('aria-label="生词本操作"');
+    expect(html).toContain('id="exportJson" type="button">导出 JSON</button>');
+    expect(html).toContain('id="exportCsv" type="button">导出 CSV</button>');
     expect(css).toContain("overflow-wrap: anywhere");
   });
 });

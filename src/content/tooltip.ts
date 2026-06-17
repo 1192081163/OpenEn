@@ -158,10 +158,10 @@ export function createTranslationTooltip(options: TooltipOptions): HTMLElement {
   const actions = document.createElement("div");
   actions.className = "openen-actions";
 
-  const save = button("Add to vocabulary", "data-openen-save");
+  const save = button("加入生词本", "data-openen-save");
   save.addEventListener("click", options.onSave);
 
-  const close = button("Close", "data-openen-close");
+  const close = button("关闭", "data-openen-close");
   close.addEventListener("click", () => {
     removeExisting();
     options.onClose();

@@ -9,21 +9,21 @@
     <main>
     <header>
       <strong>OpenEn</strong>
-      <button id="openVocabulary" type="button">Vocabulary</button>
+      <button id="openVocabulary" type="button">生词本</button>
     </header>
     <form id="translationSettings" autocomplete="off">
-      <div id="providerStatus">Local Chinese fallback</div>
+      <div id="providerStatus">本地中文模式</div>
       <label>
-        DeepSeek API key
+        DeepSeek API 密钥
         <input id="deepseekApiKey" type="password" placeholder="sk-..." />
       </label>
       <label>
-        Model
+        模型
         <input id="deepseekModel" type="text" value="deepseek-v4-flash" />
       </label>
       <div class="settings-actions">
-        <button id="saveDeepSeek" type="submit">Save</button>
-        <button id="clearDeepSeek" type="button">Clear</button>
+        <button id="saveDeepSeek" type="submit">保存</button>
+        <button id="clearDeepSeek" type="button">清除</button>
       </div>
     </form>
     <ul id="recentWords"></ul>

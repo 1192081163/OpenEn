@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { MessageType } from "../../shared/messages";
 import type { VocabularyEntry } from "../../shared/types";
 import { initPopup, renderPopup } from "./popup";
@@ -107,7 +109,7 @@ describe("popup UI", () => {
       type: MessageType.SaveDeepSeekSettings,
       payload: { apiKey: "sk-test", model: "deepseek-v4-flash" }
     });
-    expect(document.body.textContent).toContain("DeepSeek enabled");
+    expect(document.body.textContent).toContain("DeepSeek 已启用");
     expect((document.querySelector("#deepseekApiKey") as HTMLInputElement).value).toBe("");
   });
 
@@ -129,7 +131,15 @@ describe("popup UI", () => {
     await flushMicrotasks();
 
     expect(sendMessage).toHaveBeenCalledWith({ type: MessageType.ClearDeepSeekSettings });
-    expect(document.body.textContent).toContain("Local Chinese fallback");
+    expect(document.body.textContent).toContain("本地中文模式");
+  });
+
+  it("uses Chinese labels for popup buttons", () => {
+    const html = readFileSync("src/ui/popup/popup.html", "utf8");
+
+    expect(html).toContain('id="openVocabulary" type="button">生词本</button>');
+    expect(html).toContain('id="saveDeepSeek" type="submit">保存</button>');
+    expect(html).toContain('id="clearDeepSeek" type="button">清除</button>');
   });
 
   it("does not auto-start with partial chrome runtime globals", async () => {

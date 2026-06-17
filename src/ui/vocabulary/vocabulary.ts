@@ -103,7 +103,7 @@ export function renderVocabularyPage(options: RenderOptions): void {
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.dataset.deleteId = entry.id;
-    deleteButton.textContent = "Delete";
+    deleteButton.textContent = "删除";
     deleteButton.onclick = () => options.onDelete(entry.id);
     actionCell.append(deleteButton);
 
