@@ -20,7 +20,6 @@ import type { VocabularyStore } from "../storage/vocabularyStore";
 type SuccessResponse<T> = { ok: true; data: T };
 type FailureResponse = { ok: false; error: string };
 export type BackgroundResponse<T = unknown> = SuccessResponse<T> | FailureResponse;
-type NonEmptyVocabularyEntries = [VocabularyEntry, ...VocabularyEntry[]];
 
 interface HandlerDependencies {
   provider: TranslationProvider;
@@ -30,12 +29,12 @@ interface HandlerDependencies {
 }
 
 type BackgroundHandler = {
-  (message: TranslateSelectionMessage): Promise<SuccessResponse<TranslationResult>>;
-  (message: AddVocabularyMessage): Promise<SuccessResponse<VocabularyEntry>>;
-  (message: ListVocabularyMessage): Promise<SuccessResponse<NonEmptyVocabularyEntries>>;
-  (message: SearchVocabularyMessage): Promise<SuccessResponse<VocabularyEntry[]>>;
-  (message: DeleteVocabularyMessage): Promise<SuccessResponse<{ id: string }>>;
-  (message: ExportVocabularyMessage): Promise<SuccessResponse<string>>;
+  (message: TranslateSelectionMessage): Promise<BackgroundResponse<TranslationResult>>;
+  (message: AddVocabularyMessage): Promise<BackgroundResponse<VocabularyEntry>>;
+  (message: ListVocabularyMessage): Promise<BackgroundResponse<VocabularyEntry[]>>;
+  (message: SearchVocabularyMessage): Promise<BackgroundResponse<VocabularyEntry[]>>;
+  (message: DeleteVocabularyMessage): Promise<BackgroundResponse<{ id: string }>>;
+  (message: ExportVocabularyMessage): Promise<BackgroundResponse<string>>;
   (message: unknown): Promise<BackgroundResponse>;
 };
 
