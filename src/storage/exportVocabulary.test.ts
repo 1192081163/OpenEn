@@ -29,4 +29,21 @@ describe("vocabulary export", () => {
     );
     expect(csv).toContain('"Article, One"');
   });
+
+  it("neutralizes formula-leading CSV values before escaping", () => {
+    const csv = exportVocabularyAsCsv([
+      {
+        ...entries[0]!,
+        selectedText: '=IMPORTXML("https://example.com", "//title")',
+        translation: " +SUM(1,2)",
+        partOfSpeech: "-cmd",
+        contextualMeaning: "\t@handle"
+      }
+    ]);
+
+    expect(csv).toContain(`"'=IMPORTXML(""https://example.com"", ""//title"")"`);
+    expect(csv).toContain(`"' +SUM(1,2)"`);
+    expect(csv).toContain("'-cmd");
+    expect(csv).toContain("'\t@handle");
+  });
 });

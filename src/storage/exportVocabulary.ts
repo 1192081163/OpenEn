@@ -15,8 +15,9 @@ const CSV_COLUMNS: Array<keyof VocabularyEntry> = [
 
 function csvCell(value: unknown): string {
   const text = String(value ?? "");
-  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
-  return text;
+  const neutralizedText = /^\s*[=+\-@]/.test(text) ? `'${text}` : text;
+  if (/[",\n\r]/.test(neutralizedText)) return `"${neutralizedText.replace(/"/g, '""')}"`;
+  return neutralizedText;
 }
 
 export function exportVocabularyAsJson(entries: VocabularyEntry[]): string {
