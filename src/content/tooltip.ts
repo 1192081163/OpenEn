@@ -1,6 +1,10 @@
 import type { TranslationResult } from "../shared/types";
 
 const TOOLTIP_ATTR = "data-openen-tooltip";
+const TOOLTIP_WIDTH = 320;
+const TOOLTIP_HEIGHT = 156;
+const VIEWPORT_MARGIN = 8;
+const ANCHOR_GAP = 8;
 
 interface TooltipOptions {
   result: TranslationResult;
@@ -13,16 +17,37 @@ function removeExisting(): void {
   document.querySelectorAll(`[${TOOLTIP_ATTR}]`).forEach((node) => node.remove());
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function positionHost(host: HTMLElement, anchorRect: DOMRect): void {
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+  const width = Math.min(TOOLTIP_WIDTH, Math.max(0, viewportWidth - VIEWPORT_MARGIN * 2));
+  const maxLeft = Math.max(VIEWPORT_MARGIN, viewportWidth - width - VIEWPORT_MARGIN);
+  const left = clamp(anchorRect.left, VIEWPORT_MARGIN, maxLeft);
+  const bottomTop = anchorRect.bottom + ANCHOR_GAP;
+  const top = bottomTop + TOOLTIP_HEIGHT > viewportHeight
+    ? Math.max(VIEWPORT_MARGIN, anchorRect.top - TOOLTIP_HEIGHT - ANCHOR_GAP)
+    : bottomTop;
+
+  host.style.setProperty("position", "absolute", "important");
+  host.style.setProperty("z-index", "2147483647", "important");
+  host.style.setProperty("top", `${window.scrollY + top}px`, "important");
+  host.style.setProperty("left", `${window.scrollX + left}px`, "important");
+  host.style.setProperty("width", `${width}px`, "important");
+  host.style.setProperty("max-width", `calc(100vw - ${VIEWPORT_MARGIN * 2}px)`, "important");
+}
+
 function button(label: string, attr: string): HTMLButtonElement {
   const element = document.createElement("button");
   element.type = "button";
   element.textContent = label;
   element.setAttribute(attr, "");
-  element.style.border = "1px solid #d0d7de";
-  element.style.borderRadius = "6px";
-  element.style.background = "#fff";
-  element.style.padding = "4px 8px";
-  element.style.cursor = "pointer";
+  element.className = "openen-button";
+  element.style.display = "inline-flex";
+  element.style.fontSize = "13px";
   return element;
 }
 
@@ -33,37 +58,89 @@ export function removeTranslationTooltip(): void {
 export function createTranslationTooltip(options: TooltipOptions): HTMLElement {
   removeExisting();
 
-  const root = document.createElement("div");
-  root.setAttribute(TOOLTIP_ATTR, "");
-  root.style.position = "absolute";
-  root.style.zIndex = "2147483647";
-  root.style.top = `${window.scrollY + options.anchorRect.bottom + 8}px`;
-  root.style.left = `${window.scrollX + options.anchorRect.left}px`;
-  root.style.maxWidth = "320px";
-  root.style.padding = "10px";
-  root.style.border = "1px solid rgba(0, 0, 0, 0.12)";
-  root.style.borderRadius = "8px";
-  root.style.boxShadow = "0 8px 24px rgba(0, 0, 0, 0.14)";
-  root.style.background = "#fff";
-  root.style.color = "#1f2328";
-  root.style.font = "13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  const host = document.createElement("div");
+  host.setAttribute(TOOLTIP_ATTR, "");
+  positionHost(host, options.anchorRect);
+
+  const shadow = host.attachShadow({ mode: "open" });
+
+  const style = document.createElement("style");
+  style.textContent = `
+    :host {
+      all: initial;
+      box-sizing: border-box;
+      contain: layout style paint;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    [data-openen-tooltip-panel] {
+      width: 100%;
+      max-width: 100%;
+      padding: 10px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+      background: #fff;
+      color: #1f2328;
+      font: 13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .openen-title {
+      font-weight: 700;
+    }
+
+    .openen-translation {
+      margin-top: 6px;
+    }
+
+    .openen-meaning {
+      margin-top: 6px;
+      color: #57606a;
+    }
+
+    .openen-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .openen-button {
+      align-items: center;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      background: #fff;
+      color: #1f2328;
+      font: 13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+  `;
+
+  const panel = document.createElement("div");
+  panel.setAttribute("data-openen-tooltip-panel", "");
+  panel.style.boxSizing = "border-box";
+  panel.style.overflowWrap = "anywhere";
+  panel.style.width = "100%";
 
   const title = document.createElement("strong");
+  title.className = "openen-title";
   title.textContent = options.result.selectedText;
 
   const translation = document.createElement("div");
+  translation.className = "openen-translation";
   translation.textContent = options.result.translation;
-  translation.style.marginTop = "6px";
 
   const meaning = document.createElement("div");
+  meaning.className = "openen-meaning";
   meaning.textContent = options.result.contextualMeaning;
-  meaning.style.marginTop = "6px";
-  meaning.style.color = "#57606a";
 
   const actions = document.createElement("div");
-  actions.style.display = "flex";
-  actions.style.gap = "8px";
-  actions.style.marginTop = "10px";
+  actions.className = "openen-actions";
 
   const save = button("Add to vocabulary", "data-openen-save");
   save.addEventListener("click", options.onSave);
@@ -75,8 +152,9 @@ export function createTranslationTooltip(options: TooltipOptions): HTMLElement {
   });
 
   actions.append(save, close);
-  root.append(title, translation, meaning, actions);
-  document.body.append(root);
+  panel.append(title, translation, meaning, actions);
+  shadow.append(style, panel);
+  document.body.append(host);
 
-  return root;
+  return host;
 }
