@@ -75,14 +75,29 @@ describe("vocabulary store", () => {
     expect(entries[0]?.translation).toBe("new");
   });
 
+  it("updates duplicate base form from the same source URL", async () => {
+    const store = createVocabularyStore(createMemoryStorage());
+    await store.add(entry({ id: "first", selectedText: "leading", baseForm: "lead", translation: "old" }));
+    await store.add(entry({ id: "second", selectedText: "led", baseForm: "lead", translation: "new" }));
+
+    const entries = await store.list();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.id).toBe("first");
+    expect(entries[0]?.selectedText).toBe("led");
+    expect(entries[0]?.baseForm).toBe("lead");
+    expect(entries[0]?.translation).toBe("new");
+  });
+
   it("searches and deletes entries", async () => {
     const store = createVocabularyStore(createMemoryStorage());
     await store.add(entry({ id: "a", selectedText: "lead" }));
-    await store.add(entry({ id: "b", selectedText: "context", pageTitle: "Context Article" }));
+    await store.add(entry({ id: "b", selectedText: "context", translation: "context meaning", pageTitle: "Context Article" }));
+    await store.add(entry({ id: "c", selectedText: "leading", baseForm: "lead", sourceUrl: "https://example.com/c" }));
 
+    expect((await store.search("lead")).map((item) => item.id)).toEqual(["a", "c"]);
     expect((await store.search("context")).map((item) => item.id)).toEqual(["b"]);
     await store.delete("b");
-    expect((await store.list()).map((item) => item.id)).toEqual(["a"]);
+    expect((await store.list()).map((item) => item.id)).toEqual(["a", "c"]);
   });
 
   it("serializes concurrent writes so entries are not dropped", async () => {

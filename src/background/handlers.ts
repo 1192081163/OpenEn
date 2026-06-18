@@ -5,8 +5,10 @@ import {
   isDeleteVocabularyMessage,
   isExportVocabularyMessage,
   isGetTranslationSettingsMessage,
+  isGetVocabularyHighlightSettingsMessage,
   isListVocabularyMessage,
   isSaveDeepSeekSettingsMessage,
+  isSaveVocabularyHighlightSettingsMessage,
   isSearchVocabularyMessage,
   isTranslateSelectionMessage,
   type AddVocabularyMessage,
@@ -14,13 +16,21 @@ import {
   type DeleteVocabularyMessage,
   type ExportVocabularyMessage,
   type GetTranslationSettingsMessage,
+  type GetVocabularyHighlightSettingsMessage,
   type ListVocabularyMessage,
   type SaveDeepSeekSettingsMessage,
+  type SaveVocabularyHighlightSettingsMessage,
   type SearchVocabularyMessage,
   type TranslateSelectionMessage
 } from "../shared/messages";
-import type { TranslationResult, TranslationSettingsView, VocabularyEntry } from "../shared/types";
+import type {
+  TranslationResult,
+  TranslationSettingsView,
+  VocabularyEntry,
+  VocabularyHighlightSettingsView
+} from "../shared/types";
 import type { TranslationSettings, TranslationSettingsStore } from "../settings/translationSettings";
+import type { VocabularyHighlightSettingsStore } from "../settings/vocabularyHighlightSettings";
 import { exportVocabularyAsCsv, exportVocabularyAsJson } from "../storage/exportVocabulary";
 import type { VocabularyStore } from "../storage/vocabularyStore";
 
@@ -33,6 +43,7 @@ interface HandlerDependencies {
   provider: TranslationProvider;
   store: VocabularyStore;
   settingsStore?: TranslationSettingsStore;
+  highlightSettingsStore?: VocabularyHighlightSettingsStore;
   now?: () => Date;
   idFactory?: () => string;
 }
@@ -47,6 +58,8 @@ type BackgroundHandler = {
   (message: GetTranslationSettingsMessage): Promise<BackgroundResponse<TranslationSettingsView>>;
   (message: SaveDeepSeekSettingsMessage): Promise<BackgroundResponse<TranslationSettingsView>>;
   (message: ClearDeepSeekSettingsMessage): Promise<BackgroundResponse<TranslationSettingsView>>;
+  (message: GetVocabularyHighlightSettingsMessage): Promise<BackgroundResponse<VocabularyHighlightSettingsView>>;
+  (message: SaveVocabularyHighlightSettingsMessage): Promise<BackgroundResponse<VocabularyHighlightSettingsView>>;
   (message: unknown): Promise<BackgroundResponse>;
 };
 
@@ -88,6 +101,7 @@ function completeEntry(partial: Partial<VocabularyEntry>, now: Date, id: string)
     provider: partial.provider ?? "fake"
   };
 
+  if (partial.baseForm !== undefined) entry.baseForm = partial.baseForm;
   if (partial.partOfSpeech !== undefined) entry.partOfSpeech = partial.partOfSpeech;
   if (partial.example !== undefined) entry.example = partial.example;
 
@@ -138,12 +152,22 @@ export function createBackgroundHandler(dependencies: HandlerDependencies): Back
         return success(toSettingsView(await dependencies.settingsStore.saveDeepSeek(message.payload)));
       }
 
-      if (isClearDeepSeekSettingsMessage(message)) {
-        if (!dependencies.settingsStore) return failure("Translation settings unavailable");
-        return success(toSettingsView(await dependencies.settingsStore.clearDeepSeek()));
-      }
+    if (isClearDeepSeekSettingsMessage(message)) {
+      if (!dependencies.settingsStore) return failure("Translation settings unavailable");
+      return success(toSettingsView(await dependencies.settingsStore.clearDeepSeek()));
+    }
 
-      return failure("Unsupported message");
+    if (isGetVocabularyHighlightSettingsMessage(message)) {
+      if (!dependencies.highlightSettingsStore) return failure("Vocabulary highlight settings unavailable");
+      return success(await dependencies.highlightSettingsStore.load());
+    }
+
+    if (isSaveVocabularyHighlightSettingsMessage(message)) {
+      if (!dependencies.highlightSettingsStore) return failure("Vocabulary highlight settings unavailable");
+      return success(await dependencies.highlightSettingsStore.save(message.payload));
+    }
+
+    return failure("Unsupported message");
     } catch (error) {
       return failure(error instanceof Error ? error.message : "Unknown background error");
     }

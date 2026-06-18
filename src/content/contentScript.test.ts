@@ -12,10 +12,14 @@ const payload: SelectionPayload = {
 };
 
 function translationResult(overrides: Partial<TranslationResult> = {}): TranslationResult {
+  const selectedText = overrides.selectedText ?? "lead";
   return {
-    selectedText: "lead",
-    translation: "lead as guide",
+    selectedText,
+    baseForm: selectedText === "review" ? "review" : "lead",
+    translation: "带领；主持",
+    partOfSpeech: "verb",
     contextualMeaning: "Guide an activity.",
+    example: "She will lead the review.",
     provider: "fake",
     ...overrides
   };
@@ -52,6 +56,33 @@ function saveButton(): HTMLButtonElement {
   return save as HTMLButtonElement;
 }
 
+function translateButton(): HTMLButtonElement {
+  const host = tooltipHost();
+  expect(host).toBeInstanceOf(HTMLElement);
+
+  const translate = host?.shadowRoot?.querySelector("[data-openen-translate]");
+  expect(translate).toBeInstanceOf(HTMLButtonElement);
+  return translate as HTMLButtonElement;
+}
+
+function retryButton(): HTMLButtonElement {
+  const host = tooltipHost();
+  expect(host).toBeInstanceOf(HTMLElement);
+
+  const retry = host?.shadowRoot?.querySelector("[data-openen-retry]");
+  expect(retry).toBeInstanceOf(HTMLButtonElement);
+  return retry as HTMLButtonElement;
+}
+
+function refreshButton(): HTMLButtonElement {
+  const host = tooltipHost();
+  expect(host).toBeInstanceOf(HTMLElement);
+
+  const refresh = host?.shadowRoot?.querySelector("[data-openen-refresh]");
+  expect(refresh).toBeInstanceOf(HTMLButtonElement);
+  return refresh as HTMLButtonElement;
+}
+
 async function flushPromises(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
@@ -85,6 +116,22 @@ function dispatchSelectionChange(): void {
   document.dispatchEvent(new Event("selectionchange"));
 }
 
+function savedVocabularyEntry(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: "saved",
+    selectedText: "lead",
+    baseForm: "lead",
+    translation: "旧翻译",
+    contextualMeaning: "Saved meaning.",
+    paragraphContext: payload.paragraphContext,
+    sourceUrl: payload.sourceUrl,
+    pageTitle: payload.pageTitle,
+    createdAt: "2026-06-17T00:00:00.000Z",
+    provider: "fake",
+    ...overrides
+  };
+}
+
 function deferredSendMessage() {
   const requests: Array<{
     message: unknown;
@@ -113,38 +160,108 @@ describe("content script selection handling", () => {
     document.body.innerHTML = "";
   });
 
-  it("requests translation and saves full vocabulary payload through runtime messages", async () => {
+  it("requests translation only after manual action and saves full vocabulary payload", async () => {
     const sentMessages: unknown[] = [];
     const result = translationResult();
 
     const sendMessage = vi.fn(async (message: unknown) => {
       sentMessages.push(message);
+      if ((message as { type?: unknown }).type === MessageType.SearchVocabulary) {
+        return { ok: true, data: [] };
+      }
+      if ((message as { type?: unknown }).type === MessageType.AddVocabulary) {
+        return { ok: true, data: { id: "saved", ...result } };
+      }
       return { ok: true, data: result };
     });
 
     await handleSelectionPayload(payload, new DOMRect(10, 10, 20, 10), sendMessage);
 
+    expect(tooltipText()).toContain("lead");
+    expect(translateButton().textContent).toBe("翻译");
+    expect(sentMessages).toHaveLength(0);
+
+    translateButton().click();
+    await flushPromises();
+
     expect(sentMessages[0]).toEqual({ type: MessageType.TranslateSelection, payload });
+    expect(tooltipText()).toContain("带领；主持");
+    expect(tooltipText()).not.toContain(result.selectedText);
+    expect(tooltipText()).not.toContain(result.partOfSpeech ?? "");
+    expect(tooltipText()).not.toContain(result.example ?? "");
+    expect(tooltipText()).not.toContain(result.contextualMeaning);
 
     saveButton().click();
     await flushPromises();
 
-    expect(sentMessages[1]).toEqual(expectedSaveMessage(result));
+    expect(sentMessages[1]).toEqual({ type: MessageType.SearchVocabulary, payload: { query: "lead" } });
+    expect(sentMessages[2]).toEqual(expectedSaveMessage(result));
+    expect(saveButton().textContent).toBe("已加入");
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it("shows loading state while translation request is pending", async () => {
+    const { requests, sendMessage } = deferredSendMessage();
+    const result = translationResult();
+
+    await handleSelectionPayload(payload, new DOMRect(10, 10, 20, 10), sendMessage);
+
+    translateButton().click();
+    expect(tooltipText()).toContain("翻译中...");
+    expect(translateButton().disabled).toBe(true);
+
+    requests[0]?.resolve({ ok: true, data: result });
+    await flushPromises();
+    requests[1]?.resolve({ ok: true, data: [] });
+    await flushPromises();
+
+    expect(tooltipText()).toContain("带领；主持");
   });
 
   it.each([
     ["rejected translate request", async () => Promise.reject(new Error("network failed"))],
     ["missing translate response", async () => undefined],
     ["failed translate response", async () => ({ ok: false, error: "translation failed" })]
-  ])("does not render a tooltip for %s", async (_name, sendMessage) => {
+  ])("renders retry action for %s", async (_name, sendMessage) => {
     await expect(
       handleSelectionPayload(payload, new DOMRect(10, 10, 20, 10), vi.fn(sendMessage))
     ).resolves.toBeUndefined();
 
-    expect(tooltipHost()).toBeNull();
+    translateButton().click();
+    await flushPromises();
+
+    expect(tooltipText()).toContain("lead");
+    expect(tooltipText()).toContain("翻译失败，请重试");
+    expect(retryButton().textContent).toBe("重试");
+    expect(tooltipHost()?.shadowRoot?.querySelector("[data-openen-save]")).toBeNull();
   });
 
-  it("does not render a tooltip for malformed translation data", async () => {
+  it("retries a failed translation request", async () => {
+    const sentMessages: unknown[] = [];
+    const result = translationResult();
+    let translateAttempts = 0;
+
+    const sendMessage = vi.fn(async (message: unknown) => {
+      sentMessages.push(message);
+      if ((message as { type?: unknown }).type === MessageType.SearchVocabulary) {
+        return { ok: true, data: [] };
+      }
+      translateAttempts += 1;
+      return translateAttempts === 1 ? { ok: false, error: "translation failed" } : { ok: true, data: result };
+    });
+
+    await handleSelectionPayload(payload, new DOMRect(10, 10, 20, 10), sendMessage);
+
+    translateButton().click();
+    await flushPromises();
+    retryButton().click();
+    await flushPromises();
+
+    expect(tooltipText()).toContain("带领；主持");
+    expect(sentMessages.filter((message) => (message as { type?: unknown }).type === MessageType.TranslateSelection)).toHaveLength(2);
+  });
+
+  it("keeps manual translate tooltip for malformed translation data", async () => {
     const sendMessage = vi.fn(async () => ({
       ok: true,
       data: {
@@ -156,8 +273,12 @@ describe("content script selection handling", () => {
     }));
 
     await handleSelectionPayload(payload, new DOMRect(10, 10, 20, 10), sendMessage);
+    translateButton().click();
+    await flushPromises();
 
-    expect(tooltipHost()).toBeNull();
+    expect(tooltipText()).toContain("lead");
+    expect(tooltipText()).toContain("翻译失败，请重试");
+    expect(tooltipHost()?.shadowRoot?.querySelector("[data-openen-save]")).toBeNull();
   });
 
   it.each([
@@ -168,6 +289,9 @@ describe("content script selection handling", () => {
     const result = translationResult();
     const sendMessage = vi.fn(async (message: unknown) => {
       sentMessages.push(message);
+      if ((message as { type?: unknown }).type === MessageType.SearchVocabulary) {
+        return { ok: true, data: [] };
+      }
       if ((message as { type?: unknown }).type === MessageType.AddVocabulary) {
         return saveResponse();
       }
@@ -175,18 +299,212 @@ describe("content script selection handling", () => {
     });
 
     await handleSelectionPayload(payload, new DOMRect(10, 10, 20, 10), sendMessage);
+    translateButton().click();
+    await flushPromises();
 
     saveButton().click();
     await flushPromises();
 
-    expect(sentMessages[1]).toEqual(expectedSaveMessage(result));
-    expect(sentMessages).toHaveLength(2);
+    expect(sentMessages[2]).toEqual(expectedSaveMessage(result));
+    expect(sentMessages).toHaveLength(3);
   });
 
-  it("debounces selection changes and translates only the latest pending selection", async () => {
+  it("reuses cached translation for the same selection context", async () => {
+    const sentMessages: unknown[] = [];
+    const result = translationResult();
+    const sendMessage = vi.fn(async (message: unknown) => {
+      sentMessages.push(message);
+      if ((message as { type?: unknown }).type === MessageType.SearchVocabulary) {
+        return { ok: true, data: [] };
+      }
+      return { ok: true, data: result };
+    });
+
+    await handleSelectionPayload(payload, new DOMRect(10, 10, 20, 10), sendMessage);
+    translateButton().click();
+    await flushPromises();
+
+    await handleSelectionPayload(payload, new DOMRect(10, 10, 20, 10), sendMessage);
+    translateButton().click();
+    await flushPromises();
+
+    expect(tooltipText()).toContain("带领；主持");
+    expect(sentMessages.filter((message) => (message as { type?: unknown }).type === MessageType.TranslateSelection)).toHaveLength(1);
+  });
+
+  it("shows already saved state for existing vocabulary entry", async () => {
+    const sentMessages: unknown[] = [];
+    const result = translationResult();
+    const sendMessage = vi.fn(async (message: unknown) => {
+      sentMessages.push(message);
+      if ((message as { type?: unknown }).type === MessageType.SearchVocabulary) {
+        return {
+          ok: true,
+          data: [
+            {
+              id: "saved",
+              ...result,
+              paragraphContext: payload.paragraphContext,
+              sourceUrl: payload.sourceUrl,
+              pageTitle: payload.pageTitle,
+              createdAt: "2026-06-17T00:00:00.000Z"
+            }
+          ]
+        };
+      }
+      return { ok: true, data: result };
+    });
+
+    await handleSelectionPayload(payload, new DOMRect(10, 10, 20, 10), sendMessage);
+    translateButton().click();
+    await flushPromises();
+
+    expect(saveButton().textContent).toBe("已加入");
+    expect(saveButton().disabled).toBe(true);
+    saveButton().click();
+    await flushPromises();
+
+    expect(sentMessages.some((message) => (message as { type?: unknown }).type === MessageType.AddVocabulary)).toBe(false);
+  });
+
+  it("shows saved vocabulary translation immediately when requested for highlighted text", async () => {
+    const sentMessages: unknown[] = [];
+    const sendMessage = vi.fn(async (message: unknown) => {
+      sentMessages.push(message);
+      if ((message as { type?: unknown }).type === MessageType.SearchVocabulary) {
+        return { ok: true, data: [savedVocabularyEntry()] };
+      }
+      return { ok: false, error: "unexpected message" };
+    });
+
+    await handleSelectionPayload(payload, new DOMRect(10, 10, 20, 10), sendMessage, {
+      preferSavedVocabulary: true
+    });
+    await flushPromises();
+
+    expect(sentMessages).toEqual([{ type: MessageType.SearchVocabulary, payload: { query: "lead" } }]);
+    expect(tooltipText()).toContain("旧翻译");
+    expect(tooltipText()).not.toContain("lead");
+    expect(tooltipHost()?.shadowRoot?.querySelector("[data-openen-translate]")).toBeNull();
+    expect(refreshButton().textContent).toBe("重新翻译");
+    expect(saveButton().textContent).toBe("已加入");
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it("refreshes highlighted vocabulary translation without saving over old entry", async () => {
+    const sentMessages: unknown[] = [];
+    const refreshedResult = translationResult({ translation: "新翻译" });
+    const sendMessage = vi.fn(async (message: unknown) => {
+      sentMessages.push(message);
+      if ((message as { type?: unknown }).type === MessageType.SearchVocabulary) {
+        return { ok: true, data: [savedVocabularyEntry()] };
+      }
+      if ((message as { type?: unknown }).type === MessageType.TranslateSelection) {
+        return { ok: true, data: refreshedResult };
+      }
+      if ((message as { type?: unknown }).type === MessageType.AddVocabulary) {
+        throw new Error("refresh must not save vocabulary");
+      }
+      return { ok: false, error: "unexpected message" };
+    });
+
+    await handleSelectionPayload(payload, new DOMRect(10, 10, 20, 10), sendMessage, {
+      preferSavedVocabulary: true
+    });
+    await flushPromises();
+    refreshButton().click();
+    await flushPromises();
+
+    expect(tooltipText()).toContain("新翻译");
+    expect(tooltipText()).not.toContain("旧翻译");
+    expect(saveButton().textContent).toBe("已加入");
+    expect(saveButton().disabled).toBe(true);
+    expect(sentMessages.filter((message) => (message as { type?: unknown }).type === MessageType.TranslateSelection)).toHaveLength(1);
+    expect(sentMessages.some((message) => (message as { type?: unknown }).type === MessageType.AddVocabulary)).toBe(false);
+  });
+
+  it("uses base form when checking existing vocabulary entries", async () => {
+    const inflectedPayload: SelectionPayload = {
+      ...payload,
+      selectedText: "leading",
+      paragraphContext: "She is leading the review."
+    };
+    const sentMessages: unknown[] = [];
+    const result = translationResult({ selectedText: "leading", baseForm: "lead" });
+    const sendMessage = vi.fn(async (message: unknown) => {
+      sentMessages.push(message);
+      if ((message as { type?: unknown }).type === MessageType.SearchVocabulary) {
+        return {
+          ok: true,
+          data: [
+            {
+              id: "saved",
+              selectedText: "lead",
+              baseForm: "lead",
+              translation: "带领；主持",
+              contextualMeaning: "Guide an activity.",
+              paragraphContext: payload.paragraphContext,
+              sourceUrl: payload.sourceUrl,
+              pageTitle: payload.pageTitle,
+              createdAt: "2026-06-17T00:00:00.000Z",
+              provider: "fake"
+            }
+          ]
+        };
+      }
+      return { ok: true, data: result };
+    });
+
+    await handleSelectionPayload(inflectedPayload, new DOMRect(10, 10, 20, 10), sendMessage);
+    translateButton().click();
+    await flushPromises();
+
+    expect(sentMessages[1]).toEqual({ type: MessageType.SearchVocabulary, payload: { query: "lead" } });
+    expect(saveButton().textContent).toBe("已加入");
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it("highlights saved vocabulary when content script starts", async () => {
+    document.body.innerHTML = "<p>She will lead the review.</p>";
+    const sendMessage = vi.fn(async (message: unknown) => {
+      if ((message as { type?: unknown }).type === MessageType.GetVocabularyHighlightSettings) {
+        return { ok: true, data: { enabled: true } };
+      }
+      if ((message as { type?: unknown }).type === MessageType.ListVocabulary) {
+        return {
+          ok: true,
+          data: [
+            {
+              id: "saved",
+              selectedText: "lead",
+              baseForm: "lead",
+              translation: "带领；主持",
+              contextualMeaning: "Guide an activity.",
+              paragraphContext: payload.paragraphContext,
+              sourceUrl: payload.sourceUrl,
+              pageTitle: payload.pageTitle,
+              createdAt: "2026-06-17T00:00:00.000Z",
+              provider: "fake"
+            }
+          ]
+        };
+      }
+      return { ok: false, error: "unexpected message" };
+    });
+
+    cleanup = startContentScript(sendMessage);
+    await flushPromises();
+
+    const highlight = document.querySelector("[data-openen-vocabulary-highlight]");
+    expect(highlight?.textContent).toBe("lead");
+    expect(sendMessage).toHaveBeenCalledWith({ type: MessageType.GetVocabularyHighlightSettings });
+    expect(sendMessage).toHaveBeenCalledWith({ type: MessageType.ListVocabulary });
+  });
+
+  it("debounces selection changes and prepares only the latest pending selection", async () => {
     vi.useFakeTimers();
     const { requests, sendMessage } = deferredSendMessage();
-    cleanup = startContentScript(sendMessage);
+    cleanup = startContentScript(sendMessage, { enableVocabularyHighlighting: false });
 
     selectText("lead");
     dispatchSelectionChange();
@@ -199,6 +517,12 @@ describe("content script selection handling", () => {
 
     await vi.advanceTimersByTimeAsync(1);
 
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(tooltipText()).toContain("review");
+    expect(tooltipText()).not.toContain("lead");
+
+    translateButton().click();
+
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(requests[0]?.message).toMatchObject({
       type: MessageType.TranslateSelection,
@@ -209,15 +533,17 @@ describe("content script selection handling", () => {
   it("does not let an older translation response overwrite the newer tooltip", async () => {
     vi.useFakeTimers();
     const { requests, sendMessage } = deferredSendMessage();
-    cleanup = startContentScript(sendMessage);
+    cleanup = startContentScript(sendMessage, { enableVocabularyHighlighting: false });
 
     selectText("lead");
     dispatchSelectionChange();
     await vi.advanceTimersByTimeAsync(120);
+    translateButton().click();
 
     selectText("review");
     dispatchSelectionChange();
     await vi.advanceTimersByTimeAsync(120);
+    translateButton().click();
 
     requests[1]?.resolve({
       ok: true,
@@ -265,11 +591,12 @@ describe("content script selection handling", () => {
   ])("invalidates an in-flight translation after %s", async (_name, invalidate) => {
     vi.useFakeTimers();
     const { requests, sendMessage } = deferredSendMessage();
-    cleanup = startContentScript(sendMessage);
+    cleanup = startContentScript(sendMessage, { enableVocabularyHighlighting: false });
 
     selectText("lead");
     dispatchSelectionChange();
     await vi.advanceTimersByTimeAsync(120);
+    translateButton().click();
 
     invalidate();
     requests[0]?.resolve({ ok: true, data: translationResult() });
@@ -281,7 +608,7 @@ describe("content script selection handling", () => {
   it("removes listeners and clears pending work when cleanup runs", async () => {
     vi.useFakeTimers();
     const sendMessage = vi.fn(async () => ({ ok: true, data: translationResult() }));
-    cleanup = startContentScript(sendMessage);
+    cleanup = startContentScript(sendMessage, { enableVocabularyHighlighting: false });
 
     selectText("lead");
     dispatchSelectionChange();

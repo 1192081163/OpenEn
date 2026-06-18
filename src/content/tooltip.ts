@@ -6,12 +6,37 @@ const TOOLTIP_HEIGHT = 156;
 const VIEWPORT_MARGIN = 8;
 const ANCHOR_GAP = 8;
 
-interface TooltipOptions {
-  result: TranslationResult;
+interface TooltipBaseOptions {
   anchorRect: DOMRect;
-  onSave(): void;
   onClose(): void;
 }
+
+interface ActionTooltipOptions extends TooltipBaseOptions {
+  mode: "action";
+  selectedText: string;
+  onTranslate(): void;
+}
+
+interface LoadingTooltipOptions extends TooltipBaseOptions {
+  mode: "loading";
+  selectedText: string;
+}
+
+interface ErrorTooltipOptions extends TooltipBaseOptions {
+  mode: "error";
+  selectedText: string;
+  onRetry(): void;
+}
+
+interface ResultTooltipOptions extends TooltipBaseOptions {
+  mode: "result";
+  result: TranslationResult;
+  saved?: boolean;
+  onSave(): void;
+  onRefresh?(): void;
+}
+
+type TooltipOptions = ActionTooltipOptions | LoadingTooltipOptions | ErrorTooltipOptions | ResultTooltipOptions;
 
 function removeExisting(): void {
   document.querySelectorAll(`[${TOOLTIP_ATTR}]`).forEach((node) => node.remove());
@@ -111,11 +136,6 @@ export function createTranslationTooltip(options: TooltipOptions): HTMLElement {
       margin-top: 6px;
     }
 
-    .openen-meaning {
-      margin-top: 6px;
-      color: #57606a;
-    }
-
     .openen-actions {
       display: flex;
       gap: 8px;
@@ -143,23 +163,8 @@ export function createTranslationTooltip(options: TooltipOptions): HTMLElement {
   panel.style.overflowWrap = "anywhere";
   panel.style.width = "100%";
 
-  const title = document.createElement("strong");
-  title.className = "openen-title";
-  title.textContent = options.result.selectedText;
-
-  const translation = document.createElement("div");
-  translation.className = "openen-translation";
-  translation.textContent = options.result.translation;
-
-  const meaning = document.createElement("div");
-  meaning.className = "openen-meaning";
-  meaning.textContent = options.result.contextualMeaning;
-
   const actions = document.createElement("div");
   actions.className = "openen-actions";
-
-  const save = button("加入生词本", "data-openen-save");
-  save.addEventListener("click", options.onSave);
 
   const close = button("关闭", "data-openen-close");
   close.addEventListener("click", () => {
@@ -167,8 +172,58 @@ export function createTranslationTooltip(options: TooltipOptions): HTMLElement {
     options.onClose();
   });
 
-  actions.append(save, close);
-  panel.append(title, translation, meaning, actions);
+  if (options.mode === "action") {
+    const title = document.createElement("strong");
+    title.className = "openen-title";
+    title.textContent = options.selectedText;
+
+    const translate = button("翻译", "data-openen-translate");
+    translate.addEventListener("click", options.onTranslate);
+    panel.append(title);
+    actions.append(translate, close);
+  } else if (options.mode === "loading") {
+    const title = document.createElement("strong");
+    title.className = "openen-title";
+    title.textContent = options.selectedText;
+
+    const loading = button("翻译中...", "data-openen-translate");
+    loading.disabled = true;
+    panel.append(title);
+    actions.append(loading, close);
+  } else if (options.mode === "error") {
+    const title = document.createElement("strong");
+    title.className = "openen-title";
+    title.textContent = options.selectedText;
+
+    const message = document.createElement("div");
+    message.className = "openen-translation";
+    message.textContent = "翻译失败，请重试";
+
+    const retry = button("重试", "data-openen-retry");
+    retry.addEventListener("click", options.onRetry);
+
+    panel.append(title, message);
+    actions.append(retry, close);
+  } else {
+    const translation = document.createElement("div");
+    translation.className = "openen-translation";
+    translation.textContent = options.result.translation;
+
+    const save = button(options.saved ? "已加入" : "加入生词本", "data-openen-save");
+    save.disabled = options.saved === true;
+    if (!options.saved) save.addEventListener("click", options.onSave);
+
+    if (options.onRefresh) {
+      const refresh = button("重新翻译", "data-openen-refresh");
+      refresh.addEventListener("click", options.onRefresh);
+      actions.append(refresh);
+    }
+
+    panel.append(translation);
+    actions.append(save, close);
+  }
+
+  panel.append(actions);
   shadow.append(style, panel);
   document.body.append(host);
   positionHost(host, options.anchorRect, panel.getBoundingClientRect().height || maxTooltipHeight);

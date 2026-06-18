@@ -9,6 +9,7 @@ export type TranslationProviderName = "fake" | "deepseek" | "openai" | "external
 
 export interface TranslationResult {
   selectedText: string;
+  baseForm?: string;
   translation: string;
   partOfSpeech?: string;
   contextualMeaning: string;
@@ -20,6 +21,7 @@ export interface TranslationResult {
 export interface VocabularyEntry {
   id: string;
   selectedText: string;
+  baseForm?: string;
   translation: string;
   partOfSpeech?: string;
   contextualMeaning: string;
@@ -45,6 +47,10 @@ export interface TranslationSettingsView {
     apiKey: "";
     model: string;
   };
+}
+
+export interface VocabularyHighlightSettingsView {
+  enabled: boolean;
 }
 
 export type ExportFormat = "json" | "csv";

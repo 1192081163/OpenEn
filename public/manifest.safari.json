@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "OpenEn",
+  "description": "Context-aware selection translation and local vocabulary capture.",
+  "version": "0.1.0",
+  "permissions": ["storage"],
+  "host_permissions": ["https://api.deepseek.com/*"],
+  "background": {
+    "service_worker": "background/serviceWorker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content/contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "OpenEn",
+    "default_popup": "ui/popup/popup.html"
+  },
+  "options_page": "ui/vocabulary/vocabulary.html",
+  "browser_specific_settings": {
+    "safari": {
+      "strict_min_version": "17.0"
+    }
+  }
+}

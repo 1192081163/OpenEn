@@ -1,4 +1,5 @@
 import type { VocabularyEntry } from "../shared/types";
+import { getWebExtensionApi } from "../shared/webExtensionApi";
 
 const STORAGE_KEY = "openen:vocabulary";
 
@@ -27,6 +28,7 @@ function isVocabularyEntry(value: unknown): value is VocabularyEntry {
   return (
     typeof value.id === "string" &&
     typeof value.selectedText === "string" &&
+    isOptionalString(value.baseForm) &&
     typeof value.translation === "string" &&
     isOptionalString(value.partOfSpeech) &&
     typeof value.contextualMeaning === "string" &&
@@ -46,10 +48,14 @@ function sortNewestFirst(entries: VocabularyEntry[]): VocabularyEntry[] {
 function matchesQuery(entry: VocabularyEntry, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
-  return [entry.selectedText, entry.translation, entry.pageTitle, entry.contextualMeaning]
+  return [entry.selectedText, entry.baseForm ?? "", entry.translation, entry.pageTitle, entry.contextualMeaning]
     .join(" ")
     .toLowerCase()
     .includes(needle);
+}
+
+function duplicateKey(entry: Pick<VocabularyEntry, "selectedText" | "baseForm">): string {
+  return (entry.baseForm || entry.selectedText).trim().toLowerCase();
 }
 
 function createUniqueId(id: string, entries: VocabularyEntry[]): string {
@@ -91,9 +97,8 @@ export function createVocabularyStore(storageArea: StorageAreaLike): VocabularyS
     async add(entry: VocabularyEntry): Promise<VocabularyEntry> {
       return runSerialized(async () => {
         const entries = await readEntries();
-        const duplicateIndex = entries.findIndex(
-          (item) => item.selectedText.toLowerCase() === entry.selectedText.toLowerCase() && item.sourceUrl === entry.sourceUrl
-        );
+      const entryKey = duplicateKey(entry);
+      const duplicateIndex = entries.findIndex((item) => duplicateKey(item) === entryKey && item.sourceUrl === entry.sourceUrl);
 
         if (duplicateIndex >= 0) {
           const existing = entries[duplicateIndex]!;
@@ -127,5 +132,5 @@ export function createVocabularyStore(storageArea: StorageAreaLike): VocabularyS
 }
 
 export function createChromeVocabularyStore(): VocabularyStore {
-  return createVocabularyStore(chrome.storage.local);
+  return createVocabularyStore(getWebExtensionApi().storage.local);
 }

@@ -4,11 +4,22 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const dist = resolve(root, "dist");
+const targetArg = process.argv.find((arg) => arg.startsWith("--target"));
+const target =
+  targetArg?.includes("=") === true
+    ? targetArg.split("=")[1]
+    : targetArg === "--target"
+      ? process.argv[process.argv.indexOf("--target") + 1]
+      : undefined;
+const buildTarget = target === "safari" ? "safari" : "chrome";
+const dist = resolve(root, buildTarget === "safari" ? "dist-safari" : "dist");
+const manifestFile = buildTarget === "safari" ? "manifest.safari.json" : "manifest.json";
 
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 await cp(resolve(root, "public"), dist, { recursive: true });
+await cp(resolve(root, "public", manifestFile), resolve(dist, "manifest.json"));
+await rm(resolve(dist, "manifest.safari.json"), { force: true });
 
 const common = {
   bundle: true,

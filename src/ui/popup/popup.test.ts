@@ -29,6 +29,10 @@ function renderPopupShell(): void {
         <button id="saveDeepSeek" type="submit"></button>
         <button id="clearDeepSeek" type="button"></button>
       </form>
+      <label>
+        <input id="highlightVocabulary" type="checkbox" />
+        高亮生词
+      </label>
       <ul id="recentWords"></ul>
     </main>
   `;
@@ -87,13 +91,14 @@ describe("popup UI", () => {
     const sendMessage = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, data: entries })
-      .mockResolvedValueOnce({
-        ok: true,
-        data: { provider: "local", deepseek: { hasApiKey: false, model: "deepseek-v4-flash", apiKey: "" } }
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        data: { provider: "deepseek", deepseek: { hasApiKey: true, model: "deepseek-v4-flash", apiKey: "" } }
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { provider: "local", deepseek: { hasApiKey: false, model: "deepseek-v4-flash", apiKey: "" } }
+    })
+    .mockResolvedValueOnce({ ok: true, data: { enabled: true } })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { provider: "deepseek", deepseek: { hasApiKey: true, model: "deepseek-v4-flash", apiKey: "" } }
       });
 
     await initPopup({ sendMessage, openOptionsPage: vi.fn() });
@@ -117,13 +122,14 @@ describe("popup UI", () => {
     const sendMessage = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, data: entries })
-      .mockResolvedValueOnce({
-        ok: true,
-        data: { provider: "deepseek", deepseek: { hasApiKey: true, model: "deepseek-v4-flash", apiKey: "" } }
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        data: { provider: "local", deepseek: { hasApiKey: false, model: "deepseek-v4-flash", apiKey: "" } }
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { provider: "deepseek", deepseek: { hasApiKey: true, model: "deepseek-v4-flash", apiKey: "" } }
+    })
+    .mockResolvedValueOnce({ ok: true, data: { enabled: true } })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { provider: "local", deepseek: { hasApiKey: false, model: "deepseek-v4-flash", apiKey: "" } }
       });
 
     await initPopup({ sendMessage, openOptionsPage: vi.fn() });
@@ -134,12 +140,57 @@ describe("popup UI", () => {
     expect(document.body.textContent).toContain("本地中文模式");
   });
 
+  it("loads and saves vocabulary highlight toggle", async () => {
+    const notifyVocabularyHighlightSettingsChanged = vi.fn();
+    const sendMessage = vi.fn(async (message: unknown) => {
+      if ((message as { type?: unknown }).type === MessageType.ListVocabulary) {
+        return { ok: true, data: entries };
+      }
+      if ((message as { type?: unknown }).type === MessageType.GetTranslationSettings) {
+        return {
+          ok: true,
+          data: {
+            provider: "local",
+            deepseek: { hasApiKey: false, apiKey: "", model: "deepseek-v4-flash" }
+          }
+        };
+      }
+      if ((message as { type?: unknown }).type === MessageType.GetVocabularyHighlightSettings) {
+        return { ok: true, data: { enabled: true } };
+      }
+      if ((message as { type?: unknown }).type === MessageType.SaveVocabularyHighlightSettings) {
+        return { ok: true, data: { enabled: false } };
+      }
+      return { ok: false, error: "unexpected message" };
+    });
+
+    await initPopup({
+      sendMessage,
+      openOptionsPage: vi.fn(),
+      notifyVocabularyHighlightSettingsChanged
+    });
+
+    const checkbox = document.querySelector("#highlightVocabulary") as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+
+    checkbox.checked = false;
+    checkbox.dispatchEvent(new Event("change"));
+    await flushMicrotasks();
+
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: MessageType.SaveVocabularyHighlightSettings,
+      payload: { enabled: false }
+    });
+    expect(notifyVocabularyHighlightSettingsChanged).toHaveBeenCalledWith(false);
+  });
+
   it("uses Chinese labels for popup buttons", () => {
     const html = readFileSync("src/ui/popup/popup.html", "utf8");
 
     expect(html).toContain('id="openVocabulary" type="button">生词本</button>');
     expect(html).toContain('id="saveDeepSeek" type="submit">保存</button>');
     expect(html).toContain('id="clearDeepSeek" type="button">清除</button>');
+    expect(html).toContain("高亮生词");
   });
 
   it("does not auto-start with partial chrome runtime globals", async () => {

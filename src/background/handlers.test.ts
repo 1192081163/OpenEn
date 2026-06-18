@@ -2,6 +2,7 @@ import type { TranslationProvider } from "../providers/translationProvider";
 import { MessageType } from "../shared/messages";
 import type { TranslationResult, VocabularyEntry } from "../shared/types";
 import type { TranslationSettingsStore } from "../settings/translationSettings";
+import type { VocabularyHighlightSettingsStore } from "../settings/vocabularyHighlightSettings";
 import type { VocabularyStore } from "../storage/vocabularyStore";
 import { createBackgroundHandler, type BackgroundResponse } from "./handlers";
 
@@ -74,6 +75,20 @@ function createSettingsStore(overrides: Partial<TranslationSettingsStore> = {}):
         provider: "local",
         deepseek: { apiKey: "", model: "deepseek-v4-flash" }
       };
+    },
+    ...overrides
+  };
+}
+
+function createHighlightSettingsStore(
+  overrides: Partial<VocabularyHighlightSettingsStore> = {}
+): VocabularyHighlightSettingsStore {
+  return {
+    async load() {
+      return { enabled: true };
+    },
+    async save(input) {
+      return { enabled: input.enabled };
     },
     ...overrides
   };
@@ -206,8 +221,8 @@ describe("background handler", () => {
     const csvResponse = await handler({ type: MessageType.ExportVocabulary, payload: { format: "csv" } });
     expect(csvResponse.ok).toBe(true);
     if (!csvResponse.ok) throw new Error(csvResponse.error);
-    expect(csvResponse.data).toContain("selectedText,translation,partOfSpeech,contextualMeaning");
-    expect(csvResponse.data).toContain("lead,translated,,guide");
+    expect(csvResponse.data).toContain("selectedText,baseForm,translation,partOfSpeech,contextualMeaning");
+    expect(csvResponse.data).toContain("lead,,translated,,guide");
   });
 
   it("loads translation settings without returning the api key", async () => {
@@ -250,5 +265,39 @@ describe("background handler", () => {
 
     expect(response.ok).toBe(true);
     expect(settingsStore.clearDeepSeek).toHaveBeenCalledOnce();
+  });
+
+  it("loads vocabulary highlight settings", async () => {
+    const highlightSettingsStore = createHighlightSettingsStore();
+    const handler = createBackgroundHandler({
+      provider: createProvider(),
+      store: createStore(),
+      highlightSettingsStore
+    });
+
+    const response = await handler({ type: MessageType.GetVocabularyHighlightSettings });
+
+    expect(response.ok).toBe(true);
+    if (!response.ok) throw new Error(response.error);
+    expect(response.data).toEqual({ enabled: true });
+  });
+
+  it("saves vocabulary highlight settings", async () => {
+    const highlightSettingsStore = createHighlightSettingsStore({
+      save: vi.fn(createHighlightSettingsStore().save)
+    });
+    const handler = createBackgroundHandler({
+      provider: createProvider(),
+      store: createStore(),
+      highlightSettingsStore
+    });
+
+    const response = await handler({
+      type: MessageType.SaveVocabularyHighlightSettings,
+      payload: { enabled: false }
+    });
+
+    expect(response.ok).toBe(true);
+    expect(highlightSettingsStore.save).toHaveBeenCalledWith({ enabled: false });
   });
 });

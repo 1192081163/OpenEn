@@ -24,9 +24,9 @@ describe("vocabulary export", () => {
 
   it("exports CSV with escaped values", () => {
     const csv = exportVocabularyAsCsv(entries);
-    expect(csv.split("\n")[0]).toBe(
-      "selectedText,translation,partOfSpeech,contextualMeaning,example,paragraphContext,sourceUrl,pageTitle,createdAt,provider"
-    );
+  expect(csv.split("\n")[0]).toBe(
+    "selectedText,baseForm,translation,partOfSpeech,contextualMeaning,example,paragraphContext,sourceUrl,pageTitle,createdAt,provider"
+  );
     expect(csv).toContain('"Article, One"');
   });
 

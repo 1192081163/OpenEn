@@ -1,5 +1,6 @@
-import { isTranslationSettingsView, MessageType } from "../../shared/messages";
-import type { TranslationSettingsView, VocabularyEntry } from "../../shared/types";
+import { isTranslationSettingsView, isVocabularyHighlightSettingsView, MessageType } from "../../shared/messages";
+import type { TranslationSettingsView, VocabularyEntry, VocabularyHighlightSettingsView } from "../../shared/types";
+import { getWebExtensionApi, hasWebExtensionApi } from "../../shared/webExtensionApi";
 
 interface RenderPopupOptions {
   entries: VocabularyEntry[];
@@ -10,6 +11,7 @@ interface RenderPopupOptions {
 interface InitPopupOptions {
   sendMessage(message: unknown): Promise<unknown>;
   openOptionsPage(): void;
+  notifyVocabularyHighlightSettingsChanged?(enabled: boolean): void;
 }
 
 const LOAD_FAILURE_TEXT = "Unable to load saved words.";
@@ -95,6 +97,43 @@ function bindSettingsForm(sendMessage: InitPopupOptions["sendMessage"]): void {
   };
 }
 
+function getHighlightToggle(): HTMLInputElement | undefined {
+  return document.querySelector<HTMLInputElement>("#highlightVocabulary") ?? undefined;
+}
+
+function renderHighlightSettings(settings: VocabularyHighlightSettingsView): void {
+  const toggle = getHighlightToggle();
+  if (toggle) toggle.checked = settings.enabled;
+}
+
+async function loadAndRenderHighlightSettings(sendMessage: InitPopupOptions["sendMessage"]): Promise<void> {
+  const response = await sendMessage({ type: MessageType.GetVocabularyHighlightSettings });
+  if (isRecord(response) && response.ok === true && isVocabularyHighlightSettingsView(response.data)) {
+    renderHighlightSettings(response.data);
+  }
+}
+
+function bindHighlightToggle(
+  sendMessage: InitPopupOptions["sendMessage"],
+  notifyVocabularyHighlightSettingsChanged?: (enabled: boolean) => void
+): void {
+  const toggle = getHighlightToggle();
+  if (!toggle) return;
+
+  toggle.onchange = () => {
+    const enabled = toggle.checked;
+    void sendMessage({
+      type: MessageType.SaveVocabularyHighlightSettings,
+      payload: { enabled }
+    }).then((response) => {
+      if (isRecord(response) && response.ok === true && isVocabularyHighlightSettingsView(response.data)) {
+        renderHighlightSettings(response.data);
+        notifyVocabularyHighlightSettingsChanged?.(response.data.enabled);
+      }
+    });
+  };
+}
+
 export function renderPopup(options: RenderPopupOptions): void {
   const list = document.querySelector<HTMLUListElement>("#recentWords");
   const openButton = document.querySelector<HTMLButtonElement>("#openVocabulary");
@@ -128,12 +167,14 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
   const openVocabulary = () => options.openOptionsPage();
 
   bindSettingsForm(options.sendMessage);
+  bindHighlightToggle(options.sendMessage, options.notifyVocabularyHighlightSettingsChanged);
 
   try {
     const response = await options.sendMessage({ type: MessageType.ListVocabulary });
     if (isVocabularyListResponse(response)) {
       renderPopup({ entries: response.data, openVocabulary });
       await loadAndRenderSettings(options.sendMessage);
+      await loadAndRenderHighlightSettings(options.sendMessage);
       return;
     }
   } catch {
@@ -143,24 +184,40 @@ export async function initPopup(options: InitPopupOptions): Promise<void> {
   renderPopup({ entries: [], loadFailed: true, openVocabulary });
 }
 
+function notifyActiveTabVocabularyHighlightSettingsChanged(enabled: boolean): void {
+  const tabsApi = getWebExtensionApi().tabs;
+  if (!tabsApi) return;
+
+  void tabsApi.query({ active: true, currentWindow: true }).then((tabs) => {
+    const tabId = tabs[0]?.id;
+    if (typeof tabId !== "number") return;
+    void tabsApi.sendMessage(tabId, {
+      type: MessageType.SaveVocabularyHighlightSettings,
+      payload: { enabled }
+    });
+  });
+}
+
 async function init(): Promise<void> {
+  const extensionApi = getWebExtensionApi();
   renderPopup({
     entries: [],
-    openVocabulary: () => chrome.runtime.openOptionsPage()
+    openVocabulary: () => {
+      void extensionApi.runtime.openOptionsPage();
+    }
   });
 
   await initPopup({
-    sendMessage: (message) => chrome.runtime.sendMessage(message),
-    openOptionsPage: () => chrome.runtime.openOptionsPage()
+    sendMessage: (message) => extensionApi.runtime.sendMessage(message),
+    openOptionsPage: () => {
+      void extensionApi.runtime.openOptionsPage();
+    },
+    notifyVocabularyHighlightSettingsChanged: notifyActiveTabVocabularyHighlightSettingsChanged
   });
 }
 
 function canAutoStartPopup(): boolean {
-  return (
-    typeof chrome !== "undefined" &&
-    typeof chrome.runtime?.sendMessage === "function" &&
-    typeof chrome.runtime?.openOptionsPage === "function"
-  );
+  return hasWebExtensionApi();
 }
 
 if (canAutoStartPopup()) {

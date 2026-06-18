@@ -16,6 +16,7 @@ describe("createDeepSeekTranslationProvider", () => {
             finish_reason: "stop",
             message: {
               content: JSON.stringify({
+                baseForm: "lead",
                 translation: "带领",
                 partOfSpeech: "动词",
                 contextualMeaning: "在这段话中，lead 表示带领或主持某项活动。",
@@ -57,9 +58,11 @@ describe("createDeepSeekTranslationProvider", () => {
       thinking: { type: "disabled" }
     });
     expect(JSON.stringify(body.messages)).toContain("json");
+    expect(JSON.stringify(body.messages)).toContain("baseForm");
     expect(JSON.stringify(body.messages)).toContain("She will lead design review tomorrow.");
     expect(result).toEqual({
       selectedText: "lead",
+      baseForm: "lead",
       translation: "带领",
       partOfSpeech: "动词",
       contextualMeaning: "在这段话中，lead 表示带领或主持某项活动。",

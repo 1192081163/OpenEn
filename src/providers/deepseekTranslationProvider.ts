@@ -10,6 +10,7 @@ interface DeepSeekProviderOptions {
 }
 
 interface DeepSeekJsonResult {
+  baseForm?: unknown;
   translation?: unknown;
   partOfSpeech?: unknown;
   contextualMeaning?: unknown;
@@ -40,7 +41,7 @@ function buildMessages(request: TranslationRequest): Array<{ role: "system" | "u
       role: "system",
       content:
         "You are a precise English-to-Simplified-Chinese dictionary translator. Output only json. " +
-        "Return valid JSON with translation, partOfSpeech, contextualMeaning, example, and confidence."
+        "Return valid JSON with baseForm, translation, partOfSpeech, contextualMeaning, example, and confidence."
     },
     {
       role: "user",
@@ -51,6 +52,7 @@ function buildMessages(request: TranslationRequest): Array<{ role: "system" | "u
         paragraphContext: request.paragraphContext,
         targetLang: request.targetLang,
         exampleJson: {
+          baseForm: "lead",
           translation: "带领",
           partOfSpeech: "动词",
           contextualMeaning: "在这段话中，lead 表示带领或主持某项活动。",
@@ -103,6 +105,7 @@ export function createDeepSeekTranslationProvider(options: DeepSeekProviderOptio
       }
 
       const parsed = parseDeepSeekContent(content);
+      const baseForm = optionalString(parsed.baseForm);
       const translation = optionalString(parsed.translation);
       const contextualMeaning = optionalString(parsed.contextualMeaning);
       const partOfSpeech = optionalString(parsed.partOfSpeech);
@@ -115,6 +118,7 @@ export function createDeepSeekTranslationProvider(options: DeepSeekProviderOptio
 
       return {
         selectedText: request.selectedText,
+        ...(baseForm ? { baseForm } : {}),
         translation,
         contextualMeaning,
         ...(partOfSpeech ? { partOfSpeech } : {}),

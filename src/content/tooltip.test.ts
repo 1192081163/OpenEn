@@ -3,7 +3,7 @@ import { createTranslationTooltip } from "./tooltip";
 
 const result: TranslationResult = {
   selectedText: "lead",
-  translation: "lead as guide",
+  translation: "带领；主持",
   partOfSpeech: "verb",
   contextualMeaning: "Guide or direct an activity.",
   example: "She will lead the review.",
@@ -38,6 +38,24 @@ function saveButton(): HTMLButtonElement {
   return save as HTMLButtonElement;
 }
 
+function translateButton(): HTMLButtonElement {
+  const translate = tooltipRoot().querySelector("[data-openen-translate]");
+  expect(translate).toBeInstanceOf(HTMLButtonElement);
+  return translate as HTMLButtonElement;
+}
+
+function retryButton(): HTMLButtonElement {
+  const retry = tooltipRoot().querySelector("[data-openen-retry]");
+  expect(retry).toBeInstanceOf(HTMLButtonElement);
+  return retry as HTMLButtonElement;
+}
+
+function refreshButton(): HTMLButtonElement {
+  const refresh = tooltipRoot().querySelector("[data-openen-refresh]");
+  expect(refresh).toBeInstanceOf(HTMLButtonElement);
+  return refresh as HTMLButtonElement;
+}
+
 function closeButton(): HTMLButtonElement {
   const close = tooltipRoot().querySelector("[data-openen-close]");
   expect(close).toBeInstanceOf(HTMLButtonElement);
@@ -51,20 +69,135 @@ afterEach(() => {
 });
 
 describe("translation tooltip", () => {
-  it("renders translation content and save action", () => {
-    const onSave = vi.fn();
-    createTranslationTooltip({ result, anchorRect: new DOMRect(20, 30, 40, 12), onSave, onClose: vi.fn() });
+  it("renders manual translate action", () => {
+    const onTranslate = vi.fn();
 
-    expect(tooltipRoot().textContent).toContain("lead as guide");
+    createTranslationTooltip({
+      mode: "action",
+      selectedText: "lead",
+      anchorRect: new DOMRect(20, 30, 40, 12),
+      onTranslate,
+      onClose: vi.fn()
+    });
+
+    expect(tooltipRoot().textContent).toContain("lead");
+    expect(translateButton().textContent).toBe("翻译");
+    expect(closeButton().textContent).toBe("关闭");
+    expect(tooltipRoot().querySelector("[data-openen-save]")).toBeNull();
+
+    translateButton().click();
+    expect(onTranslate).toHaveBeenCalledOnce();
+  });
+
+  it("renders loading state while translating", () => {
+    createTranslationTooltip({
+      mode: "loading",
+      selectedText: "lead",
+      anchorRect: new DOMRect(20, 30, 40, 12),
+      onClose: vi.fn()
+    });
+
+    expect(tooltipRoot().textContent).toContain("lead");
+    expect(translateButton().textContent).toBe("翻译中...");
+    expect(translateButton().disabled).toBe(true);
+    expect(tooltipRoot().querySelector("[data-openen-save]")).toBeNull();
+  });
+
+  it("renders retry action after translation failure", () => {
+    const onRetry = vi.fn();
+
+    createTranslationTooltip({
+      mode: "error",
+      selectedText: "lead",
+      anchorRect: new DOMRect(20, 30, 40, 12),
+      onRetry,
+      onClose: vi.fn()
+    });
+
+    expect(tooltipRoot().textContent).toContain("lead");
+    expect(tooltipRoot().textContent).toContain("翻译失败，请重试");
+    expect(retryButton().textContent).toBe("重试");
+    expect(tooltipRoot().querySelector("[data-openen-save]")).toBeNull();
+
+    retryButton().click();
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("renders only the Chinese meaning and save action after translation", () => {
+    const onSave = vi.fn();
+    createTranslationTooltip({
+      mode: "result",
+      result,
+      anchorRect: new DOMRect(20, 30, 40, 12),
+      onSave,
+      onClose: vi.fn()
+    });
+
+    expect(tooltipRoot().textContent).toContain("带领；主持");
+    expect(tooltipRoot().textContent).not.toContain(result.selectedText);
+    expect(tooltipRoot().textContent).not.toContain(result.partOfSpeech ?? "");
+    expect(tooltipRoot().textContent).not.toContain(result.example ?? "");
+    expect(tooltipRoot().textContent).not.toContain(result.contextualMeaning);
+    expect(tooltipRoot().querySelector(".openen-meaning")).toBeNull();
     expect(saveButton().textContent).toBe("加入生词本");
     expect(closeButton().textContent).toBe("关闭");
     saveButton().click();
     expect(onSave).toHaveBeenCalledOnce();
   });
 
+  it("renders already saved result without another save action", () => {
+    const onSave = vi.fn();
+
+    createTranslationTooltip({
+      mode: "result",
+      result,
+      saved: true,
+      anchorRect: new DOMRect(20, 30, 40, 12),
+      onSave,
+      onClose: vi.fn()
+    });
+
+    expect(tooltipRoot().textContent).toContain("带领；主持");
+    expect(saveButton().textContent).toBe("已加入");
+    expect(saveButton().disabled).toBe(true);
+
+  saveButton().click();
+  expect(onSave).not.toHaveBeenCalled();
+});
+
+  it("renders optional refresh action for saved results", () => {
+    const onRefresh = vi.fn();
+
+    createTranslationTooltip({
+      mode: "result",
+      result,
+      saved: true,
+      anchorRect: new DOMRect(20, 30, 40, 12),
+      onSave: vi.fn(),
+      onRefresh,
+      onClose: vi.fn()
+    });
+
+    expect(refreshButton().textContent).toBe("重新翻译");
+    refreshButton().click();
+    expect(onRefresh).toHaveBeenCalledOnce();
+  });
+
   it("removes an existing tooltip before rendering a new one", () => {
-    createTranslationTooltip({ result, anchorRect: new DOMRect(20, 30, 40, 12), onSave: vi.fn(), onClose: vi.fn() });
-    createTranslationTooltip({ result, anchorRect: new DOMRect(20, 30, 40, 12), onSave: vi.fn(), onClose: vi.fn() });
+    createTranslationTooltip({
+      mode: "result",
+      result,
+      anchorRect: new DOMRect(20, 30, 40, 12),
+      onSave: vi.fn(),
+      onClose: vi.fn()
+    });
+    createTranslationTooltip({
+      mode: "result",
+      result,
+      anchorRect: new DOMRect(20, 30, 40, 12),
+      onSave: vi.fn(),
+      onClose: vi.fn()
+    });
 
     expect(document.querySelectorAll("[data-openen-tooltip]")).toHaveLength(1);
   });
@@ -75,7 +208,13 @@ describe("translation tooltip", () => {
     style.textContent = "button { display: none !important; } * { font-size: 1px !important; }";
     document.head.append(style);
 
-    createTranslationTooltip({ result, anchorRect: new DOMRect(20, 30, 40, 12), onSave: vi.fn(), onClose: vi.fn() });
+    createTranslationTooltip({
+      mode: "result",
+      result,
+      anchorRect: new DOMRect(20, 30, 40, 12),
+      onSave: vi.fn(),
+      onClose: vi.fn()
+    });
 
     const host = tooltipHost();
     expect(host.shadowRoot).not.toBeNull();
@@ -88,7 +227,13 @@ describe("translation tooltip", () => {
   it("clamps the left position near the right viewport edge", () => {
     setViewport(360, 600);
 
-    createTranslationTooltip({ result, anchorRect: new DOMRect(340, 120, 20, 12), onSave: vi.fn(), onClose: vi.fn() });
+    createTranslationTooltip({
+      mode: "result",
+      result,
+      anchorRect: new DOMRect(340, 120, 20, 12),
+      onSave: vi.fn(),
+      onClose: vi.fn()
+    });
 
     expect(Number.parseFloat(tooltipHost().style.left)).toBeLessThanOrEqual(32);
   });
@@ -97,13 +242,20 @@ describe("translation tooltip", () => {
     setViewport(400, 240);
     const anchorRect = new DOMRect(20, 210, 40, 20);
 
-    createTranslationTooltip({ result, anchorRect, onSave: vi.fn(), onClose: vi.fn() });
+    createTranslationTooltip({
+      mode: "result",
+      result,
+      anchorRect,
+      onSave: vi.fn(),
+      onClose: vi.fn()
+    });
 
     expect(Number.parseFloat(tooltipHost().style.top)).toBeLessThan(anchorRect.top);
   });
 
   it("wraps long selected and translated text", () => {
     createTranslationTooltip({
+      mode: "result",
       result: {
         ...result,
         selectedText: "pneumonoultramicroscopicsilicovolcanoconiosis".repeat(2),
@@ -122,6 +274,7 @@ describe("translation tooltip", () => {
     setViewport(360, 180);
 
     createTranslationTooltip({
+      mode: "result",
       result: {
         ...result,
         selectedText: "selected text ".repeat(80),

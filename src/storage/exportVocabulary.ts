@@ -2,6 +2,7 @@ import type { VocabularyEntry } from "../shared/types";
 
 const CSV_COLUMNS: Array<keyof VocabularyEntry> = [
   "selectedText",
+  "baseForm",
   "translation",
   "partOfSpeech",
   "contextualMeaning",

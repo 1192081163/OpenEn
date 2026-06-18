@@ -1,4 +1,10 @@
-import type { ExportFormat, SelectionPayload, TranslationSettingsView, VocabularyEntry } from "./types";
+import type {
+  ExportFormat,
+  SelectionPayload,
+  TranslationSettingsView,
+  VocabularyEntry,
+  VocabularyHighlightSettingsView
+} from "./types";
 
 export enum MessageType {
   TranslateSelection = "TRANSLATE_SELECTION",
@@ -9,7 +15,9 @@ export enum MessageType {
   ExportVocabulary = "EXPORT_VOCABULARY",
   GetTranslationSettings = "GET_TRANSLATION_SETTINGS",
   SaveDeepSeekSettings = "SAVE_DEEPSEEK_SETTINGS",
-  ClearDeepSeekSettings = "CLEAR_DEEPSEEK_SETTINGS"
+  ClearDeepSeekSettings = "CLEAR_DEEPSEEK_SETTINGS",
+  GetVocabularyHighlightSettings = "GET_VOCABULARY_HIGHLIGHT_SETTINGS",
+  SaveVocabularyHighlightSettings = "SAVE_VOCABULARY_HIGHLIGHT_SETTINGS"
 }
 
 export interface TranslateSelectionMessage {
@@ -54,6 +62,15 @@ export interface ClearDeepSeekSettingsMessage {
   type: MessageType.ClearDeepSeekSettings;
 }
 
+export interface GetVocabularyHighlightSettingsMessage {
+  type: MessageType.GetVocabularyHighlightSettings;
+}
+
+export interface SaveVocabularyHighlightSettingsMessage {
+  type: MessageType.SaveVocabularyHighlightSettings;
+  payload: VocabularyHighlightSettingsView;
+}
+
 export type OpenEnMessage =
   | TranslateSelectionMessage
   | AddVocabularyMessage
@@ -63,7 +80,9 @@ export type OpenEnMessage =
   | ExportVocabularyMessage
   | GetTranslationSettingsMessage
   | SaveDeepSeekSettingsMessage
-  | ClearDeepSeekSettingsMessage;
+  | ClearDeepSeekSettingsMessage
+  | GetVocabularyHighlightSettingsMessage
+  | SaveVocabularyHighlightSettingsMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -80,6 +99,7 @@ function hasOptionalString(record: Record<string, unknown>, key: string): boolea
 const vocabularyEntryStringFields = [
   "id",
   "selectedText",
+  "baseForm",
   "translation",
   "partOfSpeech",
   "contextualMeaning",
@@ -158,6 +178,23 @@ export function isClearDeepSeekSettingsMessage(value: unknown): value is ClearDe
   return isRecord(value) && value.type === MessageType.ClearDeepSeekSettings;
 }
 
+export function isGetVocabularyHighlightSettingsMessage(
+  value: unknown
+): value is GetVocabularyHighlightSettingsMessage {
+  return isRecord(value) && value.type === MessageType.GetVocabularyHighlightSettings;
+}
+
+export function isSaveVocabularyHighlightSettingsMessage(
+  value: unknown
+): value is SaveVocabularyHighlightSettingsMessage {
+  return (
+    isRecord(value) &&
+    value.type === MessageType.SaveVocabularyHighlightSettings &&
+    isRecord(value.payload) &&
+    typeof value.payload.enabled === "boolean"
+  );
+}
+
 export function isTranslationSettingsView(value: unknown): value is TranslationSettingsView {
   return (
     isRecord(value) &&
@@ -167,4 +204,8 @@ export function isTranslationSettingsView(value: unknown): value is TranslationS
     value.deepseek.apiKey === "" &&
     typeof value.deepseek.model === "string"
   );
+}
+
+export function isVocabularyHighlightSettingsView(value: unknown): value is VocabularyHighlightSettingsView {
+  return isRecord(value) && typeof value.enabled === "boolean";
 }

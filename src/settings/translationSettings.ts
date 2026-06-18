@@ -1,3 +1,5 @@
+import { getWebExtensionApi } from "../shared/webExtensionApi";
+
 export const TRANSLATION_SETTINGS_KEY = "openen:translation-settings";
 export const DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash";
 
@@ -87,5 +89,5 @@ export function createTranslationSettingsStore(storage: SettingsStorageLike): Tr
 }
 
 export function createChromeTranslationSettingsStore(): TranslationSettingsStore {
-  return createTranslationSettingsStore(chrome.storage.local);
+  return createTranslationSettingsStore(getWebExtensionApi().storage.local);
 }

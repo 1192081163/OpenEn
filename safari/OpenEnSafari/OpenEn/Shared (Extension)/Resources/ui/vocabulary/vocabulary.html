@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="./vocabulary.css" />
+    <title>OpenEn 生词本</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>生词本</h1>
+        <div class="actions" role="group" aria-label="生词本操作">
+          <button id="exportJson" type="button">导出 JSON</button>
+          <button id="exportCsv" type="button">导出 CSV</button>
+        </div>
+      </header>
+      <input id="search" type="search" placeholder="搜索生词" aria-label="搜索生词" />
+      <table>
+        <thead>
+          <tr>
+            <th>单词</th>
+            <th>翻译</th>
+            <th>来源</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="entries"></tbody>
+      </table>
+    </main>
+    <script type="module" src="./vocabulary.js"></script>
+  </body>
+</html>

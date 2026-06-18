@@ -1,5 +1,6 @@
 import { MessageType } from "../../shared/messages";
 import type { ExportFormat, VocabularyEntry } from "../../shared/types";
+import { getWebExtensionApi, hasWebExtensionApi } from "../../shared/webExtensionApi";
 
 interface RenderOptions {
   entries: VocabularyEntry[];
@@ -75,9 +76,9 @@ export function renderVocabularyPage(options: RenderOptions): void {
   for (const entry of options.entries) {
     const row = document.createElement("tr");
 
-    const wordCell = document.createElement("td");
-    const word = document.createElement("strong");
-    word.textContent = entry.selectedText;
+      const wordCell = document.createElement("td");
+      const word = document.createElement("strong");
+      word.textContent = entry.baseForm || entry.selectedText;
     const meaning = document.createElement("div");
     meaning.textContent = entry.contextualMeaning;
     wordCell.append(word, meaning);
@@ -143,7 +144,8 @@ async function loadEntries(sendMessage: SendMessage, query = ""): Promise<LoadEn
 }
 
 async function init(): Promise<void> {
-  await initVocabularyPage({ sendMessage: (message) => chrome.runtime.sendMessage(message) });
+  const extensionApi = getWebExtensionApi();
+  await initVocabularyPage({ sendMessage: (message) => extensionApi.runtime.sendMessage(message) });
 }
 
 export async function initVocabularyPage(options: { sendMessage: SendMessage }): Promise<void> {
@@ -193,10 +195,10 @@ export async function initVocabularyPage(options: { sendMessage: SendMessage }):
   await refresh();
 }
 
-function hasChromeRuntime(): boolean {
-  return typeof chrome !== "undefined" && typeof chrome.runtime?.sendMessage === "function";
+function hasExtensionRuntime(): boolean {
+  return hasWebExtensionApi();
 }
 
-if (hasChromeRuntime()) {
+if (hasExtensionRuntime()) {
   void init();
 }
