@@ -955,4 +955,3 @@
     startContentScript();
   }
 })();
-//# sourceMappingURL=contentScript.js.map

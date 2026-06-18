@@ -262,4 +262,3 @@
     void init();
   }
 })();
-//# sourceMappingURL=vocabulary.js.map

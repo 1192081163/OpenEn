@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-safari/
+docs/superpowers/
 .DS_Store
 .env
 .env.*

@@ -24,7 +24,7 @@ await rm(resolve(dist, "manifest.safari.json"), { force: true });
 const common = {
   bundle: true,
   target: "chrome116",
-  sourcemap: true,
+  sourcemap: buildTarget === "chrome",
   logLevel: "info"
 };
 

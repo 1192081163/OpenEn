@@ -645,4 +645,3 @@ extensionApi.runtime.onMessage?.addListener((message, _sender, sendResponse) => 
   handleMessage(message).then(sendResponse);
   return true;
 });
-//# sourceMappingURL=serviceWorker.js.map
