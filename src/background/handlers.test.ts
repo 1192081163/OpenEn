@@ -1,6 +1,7 @@
 import type { TranslationProvider } from "../providers/translationProvider";
 import { MessageType } from "../shared/messages";
 import type { TranslationResult, VocabularyEntry } from "../shared/types";
+import type { TranslationBubbleSettingsStore } from "../settings/translationBubbleSettings";
 import type { TranslationSettingsStore } from "../settings/translationSettings";
 import type { VocabularyHighlightSettingsStore } from "../settings/vocabularyHighlightSettings";
 import type { VocabularyStore } from "../storage/vocabularyStore";
@@ -94,6 +95,20 @@ function createHighlightSettingsStore(
   };
 }
 
+function createTranslationBubbleSettingsStore(
+  overrides: Partial<TranslationBubbleSettingsStore> = {}
+): TranslationBubbleSettingsStore {
+  return {
+    async load() {
+      return { enabled: true };
+    },
+    async save(input) {
+      return { enabled: input.enabled };
+    },
+    ...overrides
+  };
+}
+
 describe("background handler", () => {
   it("exposes failure-aware response types for known messages", async () => {
     const handler = createBackgroundHandler({ provider: createProvider(), store: createStore() });
@@ -142,6 +157,7 @@ describe("background handler", () => {
           selectedText: "lead",
           translation: "translated",
           contextualMeaning: "guide",
+          phrase: "lead a review",
           paragraphContext: "She will lead review.",
           sourceUrl: "https://example.com",
           pageTitle: "Example",
@@ -156,6 +172,7 @@ describe("background handler", () => {
     if (!listResponse.ok) throw new Error(listResponse.error);
     expect(listResponse.data).toHaveLength(1);
     expect(listResponse.data[0]?.selectedText).toBe("lead");
+    expect(listResponse.data[0]?.phrase).toBe("lead a review");
   });
 
   it("returns failure for unsupported messages", async () => {
@@ -299,5 +316,27 @@ describe("background handler", () => {
 
     expect(response.ok).toBe(true);
     expect(highlightSettingsStore.save).toHaveBeenCalledWith({ enabled: false });
+  });
+
+  it("loads and saves translation bubble settings", async () => {
+    const translationBubbleSettingsStore = createTranslationBubbleSettingsStore({
+      load: vi.fn().mockResolvedValue({ enabled: false }),
+      save: vi.fn(createTranslationBubbleSettingsStore().save)
+    });
+    const handler = createBackgroundHandler({
+      provider: createProvider(),
+      store: createStore(),
+      translationBubbleSettingsStore
+    });
+
+    const loadResponse = await handler({ type: MessageType.GetTranslationBubbleSettings });
+    const saveResponse = await handler({
+      type: MessageType.SaveTranslationBubbleSettings,
+      payload: { enabled: true }
+    });
+
+    expect(loadResponse).toEqual({ ok: true, data: { enabled: false } });
+    expect(saveResponse).toEqual({ ok: true, data: { enabled: true } });
+    expect(translationBubbleSettingsStore.save).toHaveBeenCalledWith({ enabled: true });
   });
 });

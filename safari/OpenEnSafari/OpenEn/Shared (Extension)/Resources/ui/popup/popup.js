@@ -10,6 +10,9 @@
   function isVocabularyHighlightSettingsView(value) {
     return isRecord(value) && typeof value.enabled === "boolean";
   }
+  function isTranslationBubbleSettingsView(value) {
+    return isRecord(value) && typeof value.enabled === "boolean";
+  }
 
   // src/shared/webExtensionApi.ts
   function hasUsableCapability(api) {
@@ -181,14 +184,27 @@
   function getHighlightToggle() {
     return document.querySelector("#highlightVocabulary") ?? void 0;
   }
+  function getTranslationBubbleToggle() {
+    return document.querySelector("#translationBubble") ?? void 0;
+  }
   function renderHighlightSettings(settings) {
     const toggle = getHighlightToggle();
+    if (toggle) toggle.checked = settings.enabled;
+  }
+  function renderTranslationBubbleSettings(settings) {
+    const toggle = getTranslationBubbleToggle();
     if (toggle) toggle.checked = settings.enabled;
   }
   async function loadAndRenderHighlightSettings(sendMessage) {
     const response = await sendMessage({ type: "GET_VOCABULARY_HIGHLIGHT_SETTINGS" /* GetVocabularyHighlightSettings */ });
     if (isRecord2(response) && response.ok === true && isVocabularyHighlightSettingsView(response.data)) {
       renderHighlightSettings(response.data);
+    }
+  }
+  async function loadAndRenderTranslationBubbleSettings(sendMessage) {
+    const response = await sendMessage({ type: "GET_TRANSLATION_BUBBLE_SETTINGS" /* GetTranslationBubbleSettings */ });
+    if (isRecord2(response) && response.ok === true && isTranslationBubbleSettingsView(response.data)) {
+      renderTranslationBubbleSettings(response.data);
     }
   }
   function bindHighlightToggle(sendMessage, notifyVocabularyHighlightSettingsChanged) {
@@ -203,6 +219,22 @@
         if (isRecord2(response) && response.ok === true && isVocabularyHighlightSettingsView(response.data)) {
           renderHighlightSettings(response.data);
           notifyVocabularyHighlightSettingsChanged?.(response.data.enabled);
+        }
+      });
+    };
+  }
+  function bindTranslationBubbleToggle(sendMessage, notifyTranslationBubbleSettingsChanged) {
+    const toggle = getTranslationBubbleToggle();
+    if (!toggle) return;
+    toggle.onchange = () => {
+      const enabled = toggle.checked;
+      void sendMessage({
+        type: "SAVE_TRANSLATION_BUBBLE_SETTINGS" /* SaveTranslationBubbleSettings */,
+        payload: { enabled }
+      }).then((response) => {
+        if (isRecord2(response) && response.ok === true && isTranslationBubbleSettingsView(response.data)) {
+          renderTranslationBubbleSettings(response.data);
+          notifyTranslationBubbleSettingsChanged?.(response.data.enabled);
         }
       });
     };
@@ -235,12 +267,14 @@
     const openVocabulary = () => options.openOptionsPage();
     bindSettingsForm(options.sendMessage);
     bindHighlightToggle(options.sendMessage, options.notifyVocabularyHighlightSettingsChanged);
+    bindTranslationBubbleToggle(options.sendMessage, options.notifyTranslationBubbleSettingsChanged);
     try {
       const response = await options.sendMessage({ type: "LIST_VOCABULARY" /* ListVocabulary */ });
       if (isVocabularyListResponse(response)) {
         renderPopup({ entries: response.data, openVocabulary });
         await loadAndRenderSettings(options.sendMessage);
         await loadAndRenderHighlightSettings(options.sendMessage);
+        await loadAndRenderTranslationBubbleSettings(options.sendMessage);
         return;
       }
     } catch {
@@ -259,6 +293,18 @@
       });
     });
   }
+  function notifyActiveTabTranslationBubbleSettingsChanged(enabled) {
+    const tabsApi = getWebExtensionApi().tabs;
+    if (!tabsApi) return;
+    void tabsApi.query({ active: true, currentWindow: true }).then((tabs) => {
+      const tabId = tabs[0]?.id;
+      if (typeof tabId !== "number") return;
+      void tabsApi.sendMessage(tabId, {
+        type: "SAVE_TRANSLATION_BUBBLE_SETTINGS" /* SaveTranslationBubbleSettings */,
+        payload: { enabled }
+      });
+    });
+  }
   async function init() {
     const extensionApi = getWebExtensionApi();
     renderPopup({
@@ -272,7 +318,8 @@
       openOptionsPage: () => {
         void extensionApi.runtime.openOptionsPage();
       },
-      notifyVocabularyHighlightSettingsChanged: notifyActiveTabVocabularyHighlightSettingsChanged
+      notifyVocabularyHighlightSettingsChanged: notifyActiveTabVocabularyHighlightSettingsChanged,
+      notifyTranslationBubbleSettingsChanged: notifyActiveTabTranslationBubbleSettingsChanged
     });
   }
   function canAutoStartPopup() {

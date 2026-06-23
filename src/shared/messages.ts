@@ -1,6 +1,7 @@
 import type {
   ExportFormat,
   SelectionPayload,
+  TranslationBubbleSettingsView,
   TranslationSettingsView,
   VocabularyEntry,
   VocabularyHighlightSettingsView
@@ -17,7 +18,9 @@ export enum MessageType {
   SaveDeepSeekSettings = "SAVE_DEEPSEEK_SETTINGS",
   ClearDeepSeekSettings = "CLEAR_DEEPSEEK_SETTINGS",
   GetVocabularyHighlightSettings = "GET_VOCABULARY_HIGHLIGHT_SETTINGS",
-  SaveVocabularyHighlightSettings = "SAVE_VOCABULARY_HIGHLIGHT_SETTINGS"
+  SaveVocabularyHighlightSettings = "SAVE_VOCABULARY_HIGHLIGHT_SETTINGS",
+  GetTranslationBubbleSettings = "GET_TRANSLATION_BUBBLE_SETTINGS",
+  SaveTranslationBubbleSettings = "SAVE_TRANSLATION_BUBBLE_SETTINGS"
 }
 
 export interface TranslateSelectionMessage {
@@ -71,6 +74,15 @@ export interface SaveVocabularyHighlightSettingsMessage {
   payload: VocabularyHighlightSettingsView;
 }
 
+export interface GetTranslationBubbleSettingsMessage {
+  type: MessageType.GetTranslationBubbleSettings;
+}
+
+export interface SaveTranslationBubbleSettingsMessage {
+  type: MessageType.SaveTranslationBubbleSettings;
+  payload: TranslationBubbleSettingsView;
+}
+
 export type OpenEnMessage =
   | TranslateSelectionMessage
   | AddVocabularyMessage
@@ -82,7 +94,9 @@ export type OpenEnMessage =
   | SaveDeepSeekSettingsMessage
   | ClearDeepSeekSettingsMessage
   | GetVocabularyHighlightSettingsMessage
-  | SaveVocabularyHighlightSettingsMessage;
+  | SaveVocabularyHighlightSettingsMessage
+  | GetTranslationBubbleSettingsMessage
+  | SaveTranslationBubbleSettingsMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -104,6 +118,7 @@ const vocabularyEntryStringFields = [
   "partOfSpeech",
   "contextualMeaning",
   "example",
+  "phrase",
   "paragraphContext",
   "sourceUrl",
   "pageTitle",
@@ -195,6 +210,23 @@ export function isSaveVocabularyHighlightSettingsMessage(
   );
 }
 
+export function isGetTranslationBubbleSettingsMessage(
+  value: unknown
+): value is GetTranslationBubbleSettingsMessage {
+  return isRecord(value) && value.type === MessageType.GetTranslationBubbleSettings;
+}
+
+export function isSaveTranslationBubbleSettingsMessage(
+  value: unknown
+): value is SaveTranslationBubbleSettingsMessage {
+  return (
+    isRecord(value) &&
+    value.type === MessageType.SaveTranslationBubbleSettings &&
+    isRecord(value.payload) &&
+    typeof value.payload.enabled === "boolean"
+  );
+}
+
 export function isTranslationSettingsView(value: unknown): value is TranslationSettingsView {
   return (
     isRecord(value) &&
@@ -207,5 +239,9 @@ export function isTranslationSettingsView(value: unknown): value is TranslationS
 }
 
 export function isVocabularyHighlightSettingsView(value: unknown): value is VocabularyHighlightSettingsView {
+  return isRecord(value) && typeof value.enabled === "boolean";
+}
+
+export function isTranslationBubbleSettingsView(value: unknown): value is TranslationBubbleSettingsView {
   return isRecord(value) && typeof value.enabled === "boolean";
 }

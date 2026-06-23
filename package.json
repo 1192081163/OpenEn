@@ -7,6 +7,12 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:safari": "node scripts/build.mjs --target safari",
+    "postbuild:safari": "node scripts/sync-safari-resources.mjs --optional",
+    "safari:sync": "node scripts/sync-safari-resources.mjs",
+    "build:safari:xcode": "npm run build:safari",
+    "package:chrome": "npm run build && node scripts/package-extension.mjs --target chrome",
+    "package:edge": "npm run build && node scripts/package-extension.mjs --target edge",
+    "package:all": "npm run package:chrome && npm run package:edge",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"

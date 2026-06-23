@@ -9,6 +9,7 @@ const entries: VocabularyEntry[] = [
     partOfSpeech: "verb",
     contextualMeaning: "guide an activity",
     example: "She will lead the review.",
+    phrase: "lead a review",
     paragraphContext: "She will lead the design review tomorrow.",
     sourceUrl: "https://example.com/a",
     pageTitle: "Article, One",
@@ -24,9 +25,10 @@ describe("vocabulary export", () => {
 
   it("exports CSV with escaped values", () => {
     const csv = exportVocabularyAsCsv(entries);
-  expect(csv.split("\n")[0]).toBe(
-    "selectedText,baseForm,translation,partOfSpeech,contextualMeaning,example,paragraphContext,sourceUrl,pageTitle,createdAt,provider"
-  );
+    expect(csv.split("\n")[0]).toBe(
+      "selectedText,baseForm,translation,partOfSpeech,contextualMeaning,example,phrase,paragraphContext,sourceUrl,pageTitle,createdAt,provider"
+    );
+    expect(csv).toContain("lead a review");
     expect(csv).toContain('"Article, One"');
   });
 

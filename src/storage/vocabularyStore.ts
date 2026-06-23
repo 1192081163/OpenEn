@@ -33,6 +33,7 @@ function isVocabularyEntry(value: unknown): value is VocabularyEntry {
     isOptionalString(value.partOfSpeech) &&
     typeof value.contextualMeaning === "string" &&
     isOptionalString(value.example) &&
+    isOptionalString(value.phrase) &&
     typeof value.paragraphContext === "string" &&
     typeof value.sourceUrl === "string" &&
     typeof value.pageTitle === "string" &&
@@ -48,7 +49,7 @@ function sortNewestFirst(entries: VocabularyEntry[]): VocabularyEntry[] {
 function matchesQuery(entry: VocabularyEntry, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
-  return [entry.selectedText, entry.baseForm ?? "", entry.translation, entry.pageTitle, entry.contextualMeaning]
+  return [entry.selectedText, entry.baseForm ?? "", entry.translation, entry.pageTitle, entry.contextualMeaning, entry.phrase ?? ""]
     .join(" ")
     .toLowerCase()
     .includes(needle);

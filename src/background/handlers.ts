@@ -4,10 +4,12 @@ import {
   isClearDeepSeekSettingsMessage,
   isDeleteVocabularyMessage,
   isExportVocabularyMessage,
+  isGetTranslationBubbleSettingsMessage,
   isGetTranslationSettingsMessage,
   isGetVocabularyHighlightSettingsMessage,
   isListVocabularyMessage,
   isSaveDeepSeekSettingsMessage,
+  isSaveTranslationBubbleSettingsMessage,
   isSaveVocabularyHighlightSettingsMessage,
   isSearchVocabularyMessage,
   isTranslateSelectionMessage,
@@ -15,20 +17,24 @@ import {
   type ClearDeepSeekSettingsMessage,
   type DeleteVocabularyMessage,
   type ExportVocabularyMessage,
+  type GetTranslationBubbleSettingsMessage,
   type GetTranslationSettingsMessage,
   type GetVocabularyHighlightSettingsMessage,
   type ListVocabularyMessage,
   type SaveDeepSeekSettingsMessage,
+  type SaveTranslationBubbleSettingsMessage,
   type SaveVocabularyHighlightSettingsMessage,
   type SearchVocabularyMessage,
   type TranslateSelectionMessage
 } from "../shared/messages";
 import type {
   TranslationResult,
+  TranslationBubbleSettingsView,
   TranslationSettingsView,
   VocabularyEntry,
   VocabularyHighlightSettingsView
 } from "../shared/types";
+import type { TranslationBubbleSettingsStore } from "../settings/translationBubbleSettings";
 import type { TranslationSettings, TranslationSettingsStore } from "../settings/translationSettings";
 import type { VocabularyHighlightSettingsStore } from "../settings/vocabularyHighlightSettings";
 import { exportVocabularyAsCsv, exportVocabularyAsJson } from "../storage/exportVocabulary";
@@ -44,6 +50,7 @@ interface HandlerDependencies {
   store: VocabularyStore;
   settingsStore?: TranslationSettingsStore;
   highlightSettingsStore?: VocabularyHighlightSettingsStore;
+  translationBubbleSettingsStore?: TranslationBubbleSettingsStore;
   now?: () => Date;
   idFactory?: () => string;
 }
@@ -60,6 +67,8 @@ type BackgroundHandler = {
   (message: ClearDeepSeekSettingsMessage): Promise<BackgroundResponse<TranslationSettingsView>>;
   (message: GetVocabularyHighlightSettingsMessage): Promise<BackgroundResponse<VocabularyHighlightSettingsView>>;
   (message: SaveVocabularyHighlightSettingsMessage): Promise<BackgroundResponse<VocabularyHighlightSettingsView>>;
+  (message: GetTranslationBubbleSettingsMessage): Promise<BackgroundResponse<TranslationBubbleSettingsView>>;
+  (message: SaveTranslationBubbleSettingsMessage): Promise<BackgroundResponse<TranslationBubbleSettingsView>>;
   (message: unknown): Promise<BackgroundResponse>;
 };
 
@@ -104,6 +113,7 @@ function completeEntry(partial: Partial<VocabularyEntry>, now: Date, id: string)
   if (partial.baseForm !== undefined) entry.baseForm = partial.baseForm;
   if (partial.partOfSpeech !== undefined) entry.partOfSpeech = partial.partOfSpeech;
   if (partial.example !== undefined) entry.example = partial.example;
+  if (partial.phrase !== undefined) entry.phrase = partial.phrase;
 
   return entry;
 }
@@ -162,12 +172,22 @@ export function createBackgroundHandler(dependencies: HandlerDependencies): Back
       return success(await dependencies.highlightSettingsStore.load());
     }
 
-    if (isSaveVocabularyHighlightSettingsMessage(message)) {
-      if (!dependencies.highlightSettingsStore) return failure("Vocabulary highlight settings unavailable");
-      return success(await dependencies.highlightSettingsStore.save(message.payload));
-    }
+      if (isSaveVocabularyHighlightSettingsMessage(message)) {
+        if (!dependencies.highlightSettingsStore) return failure("Vocabulary highlight settings unavailable");
+        return success(await dependencies.highlightSettingsStore.save(message.payload));
+      }
 
-    return failure("Unsupported message");
+      if (isGetTranslationBubbleSettingsMessage(message)) {
+        if (!dependencies.translationBubbleSettingsStore) return failure("Translation bubble settings unavailable");
+        return success(await dependencies.translationBubbleSettingsStore.load());
+      }
+
+      if (isSaveTranslationBubbleSettingsMessage(message)) {
+        if (!dependencies.translationBubbleSettingsStore) return failure("Translation bubble settings unavailable");
+        return success(await dependencies.translationBubbleSettingsStore.save(message.payload));
+      }
+
+      return failure("Unsupported message");
     } catch (error) {
       return failure(error instanceof Error ? error.message : "Unknown background error");
     }

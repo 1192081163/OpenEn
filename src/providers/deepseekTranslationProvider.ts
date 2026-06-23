@@ -15,6 +15,7 @@ interface DeepSeekJsonResult {
   partOfSpeech?: unknown;
   contextualMeaning?: unknown;
   example?: unknown;
+  phrase?: unknown;
   confidence?: unknown;
 }
 
@@ -41,7 +42,7 @@ function buildMessages(request: TranslationRequest): Array<{ role: "system" | "u
       role: "system",
       content:
         "You are a precise English-to-Simplified-Chinese dictionary translator. Output only json. " +
-        "Return valid JSON with baseForm, translation, partOfSpeech, contextualMeaning, example, and confidence."
+        "Return valid JSON with baseForm, translation, partOfSpeech, contextualMeaning, example, phrase, and confidence."
     },
     {
       role: "user",
@@ -54,10 +55,11 @@ function buildMessages(request: TranslationRequest): Array<{ role: "system" | "u
         exampleJson: {
           baseForm: "lead",
           translation: "带领",
-          partOfSpeech: "动词",
-          contextualMeaning: "在这段话中，lead 表示带领或主持某项活动。",
-          example: "She will lead the review. 她将主持这次评审。",
-          confidence: 0.9
+        partOfSpeech: "动词",
+        contextualMeaning: "在这段话中，lead 表示带领或主持某项活动。",
+        example: "She will lead the review. 她将主持这次评审。",
+        phrase: "lead a review",
+        confidence: 0.9
         }
       })
     }
@@ -107,10 +109,11 @@ export function createDeepSeekTranslationProvider(options: DeepSeekProviderOptio
       const parsed = parseDeepSeekContent(content);
       const baseForm = optionalString(parsed.baseForm);
       const translation = optionalString(parsed.translation);
-      const contextualMeaning = optionalString(parsed.contextualMeaning);
-      const partOfSpeech = optionalString(parsed.partOfSpeech);
-      const example = optionalString(parsed.example);
-      const confidence = clampConfidence(parsed.confidence);
+    const contextualMeaning = optionalString(parsed.contextualMeaning);
+    const partOfSpeech = optionalString(parsed.partOfSpeech);
+    const example = optionalString(parsed.example);
+    const phrase = optionalString(parsed.phrase);
+    const confidence = clampConfidence(parsed.confidence);
 
       if (!translation || !contextualMeaning) {
         throw new Error("DeepSeek response missing required fields");
@@ -120,10 +123,11 @@ export function createDeepSeekTranslationProvider(options: DeepSeekProviderOptio
         selectedText: request.selectedText,
         ...(baseForm ? { baseForm } : {}),
         translation,
-        contextualMeaning,
-        ...(partOfSpeech ? { partOfSpeech } : {}),
-        ...(example ? { example } : {}),
-        ...(confidence !== undefined ? { confidence } : {}),
+      contextualMeaning,
+      ...(partOfSpeech ? { partOfSpeech } : {}),
+      ...(example ? { example } : {}),
+      ...(phrase ? { phrase } : {}),
+      ...(confidence !== undefined ? { confidence } : {}),
         provider: "deepseek"
       };
     }

@@ -48,11 +48,6 @@ input {
   color: #1f2328;
 }
 
-input[type="checkbox"] {
-  min-width: auto;
-  margin: 0;
-}
-
 #providerStatus {
   font-weight: 600;
 }
@@ -62,12 +57,68 @@ input[type="checkbox"] {
   gap: 8px;
 }
 
-.toggle-row {
+.switch-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 12px;
   margin-top: 10px;
+  padding: 4px 0;
   color: #1f2328;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.switch-label {
+  min-width: 0;
+}
+
+.switch-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.switch-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 22px;
+  border: 1px solid #afb8c1;
+  border-radius: 999px;
+  background: #d8dee4;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(31, 35, 40, 0.24);
+  transition: transform 0.16s ease;
+}
+
+.switch-input:checked + .switch-track {
+  border-color: #0969da;
+  background: #0969da;
+}
+
+.switch-input:checked + .switch-track .switch-thumb {
+  transform: translateX(16px);
+}
+
+.switch-input:focus-visible + .switch-track {
+  outline: 2px solid #0969da;
+  outline-offset: 2px;
 }
 
 ul {

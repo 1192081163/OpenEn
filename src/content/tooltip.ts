@@ -89,6 +89,34 @@ function button(label: string, attr: string): HTMLButtonElement {
   return element;
 }
 
+function optionalText(value: string | undefined): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function resultMeta(result: TranslationResult): string {
+  return [optionalText(result.partOfSpeech), optionalText(result.baseForm ?? result.selectedText)]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function appendDetail(parent: HTMLElement, label: string, value: string | undefined): void {
+  const text = optionalText(value);
+  if (!text) return;
+
+  const row = document.createElement("div");
+  row.className = "openen-detail";
+
+  const labelElement = document.createElement("span");
+  labelElement.className = "openen-detail-label";
+  labelElement.textContent = label;
+
+  const valueElement = document.createElement("span");
+  valueElement.textContent = text;
+
+  row.append(labelElement, valueElement);
+  parent.append(row);
+}
+
 export function removeTranslationTooltip(): void {
   removeExisting();
 }
@@ -134,6 +162,30 @@ export function createTranslationTooltip(options: TooltipOptions): HTMLElement {
 
     .openen-translation {
       margin-top: 6px;
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .openen-result-card {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .openen-meta {
+      color: #57606a;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .openen-detail {
+      line-height: 1.4;
+    }
+
+    .openen-detail-label {
+      color: #57606a;
+      margin-right: 4px;
     }
 
     .openen-actions {
@@ -205,9 +257,26 @@ export function createTranslationTooltip(options: TooltipOptions): HTMLElement {
     panel.append(title, message);
     actions.append(retry, close);
   } else {
+    const card = document.createElement("div");
+    card.className = "openen-result-card";
+    card.setAttribute("data-openen-result-card", "");
+
     const translation = document.createElement("div");
     translation.className = "openen-translation";
     translation.textContent = options.result.translation;
+    card.append(translation);
+
+    const metaText = resultMeta(options.result);
+    if (metaText) {
+      const meta = document.createElement("div");
+      meta.className = "openen-meta";
+      meta.textContent = metaText;
+      card.append(meta);
+    }
+
+    appendDetail(card, "语境", options.result.contextualMeaning);
+    appendDetail(card, "例句", options.result.example);
+    appendDetail(card, "短语", options.result.phrase);
 
     const save = button(options.saved ? "已加入" : "加入生词本", "data-openen-save");
     save.disabled = options.saved === true;
@@ -219,7 +288,7 @@ export function createTranslationTooltip(options: TooltipOptions): HTMLElement {
       actions.append(refresh);
     }
 
-    panel.append(translation);
+    panel.append(card);
     actions.append(save, close);
   }
 

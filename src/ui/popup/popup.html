@@ -26,9 +26,19 @@
 	        <button id="clearDeepSeek" type="button">清除</button>
 	      </div>
 	    </form>
-	    <label class="toggle-row">
-	      <input id="highlightVocabulary" type="checkbox" />
-	      高亮生词
+	    <label class="switch-row">
+	      <span class="switch-label">划词气泡</span>
+	      <input id="translationBubble" class="switch-input" type="checkbox" role="switch" />
+	      <span class="switch-track" aria-hidden="true">
+	        <span class="switch-thumb"></span>
+	      </span>
+	    </label>
+	    <label class="switch-row">
+	      <span class="switch-label">高亮生词</span>
+	      <input id="highlightVocabulary" class="switch-input" type="checkbox" role="switch" />
+	      <span class="switch-track" aria-hidden="true">
+	        <span class="switch-thumb"></span>
+	      </span>
 	    </label>
 	    <ul id="recentWords"></ul>
 	  </main>

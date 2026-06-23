@@ -20,6 +20,7 @@ function translationResult(overrides: Partial<TranslationResult> = {}): Translat
     partOfSpeech: "verb",
     contextualMeaning: "Guide an activity.",
     example: "She will lead the review.",
+    phrase: "lead a review",
     provider: "fake",
     ...overrides
   };
@@ -122,7 +123,10 @@ function savedVocabularyEntry(overrides: Partial<Record<string, unknown>> = {}) 
     selectedText: "lead",
     baseForm: "lead",
     translation: "旧翻译",
+    partOfSpeech: "verb",
     contextualMeaning: "Saved meaning.",
+    example: "Saved example.",
+    phrase: "lead a saved review",
     paragraphContext: payload.paragraphContext,
     sourceUrl: payload.sourceUrl,
     pageTitle: payload.pageTitle,
@@ -156,6 +160,7 @@ describe("content script selection handling", () => {
     cleanup?.();
     cleanup = undefined;
     vi.useRealTimers();
+    vi.unstubAllGlobals();
     window.getSelection()?.removeAllRanges();
     document.body.innerHTML = "";
   });
@@ -186,10 +191,10 @@ describe("content script selection handling", () => {
 
     expect(sentMessages[0]).toEqual({ type: MessageType.TranslateSelection, payload });
     expect(tooltipText()).toContain("带领；主持");
-    expect(tooltipText()).not.toContain(result.selectedText);
-    expect(tooltipText()).not.toContain(result.partOfSpeech ?? "");
-    expect(tooltipText()).not.toContain(result.example ?? "");
-    expect(tooltipText()).not.toContain(result.contextualMeaning);
+    expect(tooltipText()).toContain("verb · lead");
+    expect(tooltipText()).toContain(result.contextualMeaning);
+    expect(tooltipText()).toContain(result.example ?? "");
+    expect(tooltipText()).toContain(result.phrase ?? "");
 
     saveButton().click();
     await flushPromises();
@@ -384,7 +389,10 @@ describe("content script selection handling", () => {
 
     expect(sentMessages).toEqual([{ type: MessageType.SearchVocabulary, payload: { query: "lead" } }]);
     expect(tooltipText()).toContain("旧翻译");
-    expect(tooltipText()).not.toContain("lead");
+    expect(tooltipText()).toContain("verb · lead");
+    expect(tooltipText()).toContain("Saved meaning.");
+    expect(tooltipText()).toContain("Saved example.");
+    expect(tooltipText()).toContain("lead a saved review");
     expect(tooltipHost()?.shadowRoot?.querySelector("[data-openen-translate]")).toBeNull();
     expect(refreshButton().textContent).toBe("重新翻译");
     expect(saveButton().textContent).toBe("已加入");
@@ -501,6 +509,49 @@ describe("content script selection handling", () => {
     expect(sendMessage).toHaveBeenCalledWith({ type: MessageType.ListVocabulary });
   });
 
+  it("does not show selection bubble when translation bubble is disabled", async () => {
+    vi.useFakeTimers();
+    const sendMessage = vi.fn(async () => ({ ok: true, data: translationResult() }));
+    cleanup = startContentScript(sendMessage, {
+      enableVocabularyHighlighting: false,
+      enableTranslationBubble: false
+    });
+
+    selectText("lead");
+    dispatchSelectionChange();
+    await vi.advanceTimersByTimeAsync(120);
+
+    expect(tooltipHost()).toBeNull();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("removes an open selection bubble when translation bubble setting is disabled", async () => {
+    vi.useFakeTimers();
+    const listeners: Array<(message: unknown) => void> = [];
+    vi.stubGlobal("browser", {
+      runtime: {
+        onMessage: {
+          addListener: vi.fn((listener: (message: unknown) => void) => listeners.push(listener)),
+          removeListener: vi.fn()
+        }
+      }
+    });
+    const sendMessage = vi.fn(async () => ({ ok: true, data: translationResult() }));
+    cleanup = startContentScript(sendMessage, { enableVocabularyHighlighting: false });
+
+    selectText("lead");
+    dispatchSelectionChange();
+    await vi.advanceTimersByTimeAsync(120);
+    expect(tooltipText()).toContain("lead");
+
+    listeners[0]?.({
+      type: MessageType.SaveTranslationBubbleSettings,
+      payload: { enabled: false }
+    });
+
+    expect(tooltipHost()).toBeNull();
+  });
+
   it("debounces selection changes and prepares only the latest pending selection", async () => {
     vi.useFakeTimers();
     const { requests, sendMessage } = deferredSendMessage();
@@ -545,7 +596,12 @@ describe("content script selection handling", () => {
     await vi.advanceTimersByTimeAsync(120);
     translateButton().click();
 
-    requests[1]?.resolve({
+    const newerRequest = requests.find(
+      (request) =>
+        (request.message as { type?: unknown; payload?: { selectedText?: unknown } }).type === MessageType.TranslateSelection &&
+        (request.message as { payload?: { selectedText?: unknown } }).payload?.selectedText === "review"
+    );
+    newerRequest?.resolve({
       ok: true,
       data: translationResult({
         selectedText: "review",
@@ -556,7 +612,12 @@ describe("content script selection handling", () => {
     await flushPromises();
     expect(tooltipText()).toContain("newer translation");
 
-    requests[0]?.resolve({
+    const olderRequest = requests.find(
+      (request) =>
+        (request.message as { type?: unknown; payload?: { selectedText?: unknown } }).type === MessageType.TranslateSelection &&
+        (request.message as { payload?: { selectedText?: unknown } }).payload?.selectedText === "lead"
+    );
+    olderRequest?.resolve({
       ok: true,
       data: translationResult({
         translation: "older translation"

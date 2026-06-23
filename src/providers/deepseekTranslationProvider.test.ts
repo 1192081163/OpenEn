@@ -21,6 +21,7 @@ describe("createDeepSeekTranslationProvider", () => {
                 partOfSpeech: "动词",
                 contextualMeaning: "在这段话中，lead 表示带领或主持某项活动。",
                 example: "She will lead the review. 她将主持这次评审。",
+                phrase: "lead a review",
                 confidence: 0.93
               })
             }
@@ -59,6 +60,7 @@ describe("createDeepSeekTranslationProvider", () => {
     });
     expect(JSON.stringify(body.messages)).toContain("json");
     expect(JSON.stringify(body.messages)).toContain("baseForm");
+    expect(JSON.stringify(body.messages)).toContain("phrase");
     expect(JSON.stringify(body.messages)).toContain("She will lead design review tomorrow.");
     expect(result).toEqual({
       selectedText: "lead",
@@ -67,6 +69,7 @@ describe("createDeepSeekTranslationProvider", () => {
       partOfSpeech: "动词",
       contextualMeaning: "在这段话中，lead 表示带领或主持某项活动。",
       example: "She will lead the review. 她将主持这次评审。",
+      phrase: "lead a review",
       confidence: 0.93,
       provider: "deepseek"
     });

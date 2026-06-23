@@ -3,9 +3,11 @@ import {
   isClearDeepSeekSettingsMessage,
   isDeleteVocabularyMessage,
   isExportVocabularyMessage,
+  isGetTranslationBubbleSettingsMessage,
   isGetTranslationSettingsMessage,
   isGetVocabularyHighlightSettingsMessage,
   isListVocabularyMessage,
+  isSaveTranslationBubbleSettingsMessage,
   isSaveVocabularyHighlightSettingsMessage,
   isSaveDeepSeekSettingsMessage,
   isSearchVocabularyMessage,
@@ -72,6 +74,25 @@ describe("message guards", () => {
       isSaveVocabularyHighlightSettingsMessage({
         type: MessageType.SaveVocabularyHighlightSettings,
         payload: { enabled: "true" }
+      })
+    ).toBe(false);
+  });
+
+  it("accepts translation bubble settings messages", () => {
+    expect(isGetTranslationBubbleSettingsMessage({ type: MessageType.GetTranslationBubbleSettings })).toBe(true);
+    expect(
+      isSaveTranslationBubbleSettingsMessage({
+        type: MessageType.SaveTranslationBubbleSettings,
+        payload: { enabled: false }
+      })
+    ).toBe(true);
+  });
+
+  it("rejects malformed translation bubble settings messages", () => {
+    expect(
+      isSaveTranslationBubbleSettingsMessage({
+        type: MessageType.SaveTranslationBubbleSettings,
+        payload: { enabled: "false" }
       })
     ).toBe(false);
   });

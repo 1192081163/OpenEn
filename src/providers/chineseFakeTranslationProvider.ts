@@ -23,6 +23,7 @@ function translateLead(selectedText: string, context: string): TranslationResult
       partOfSpeech: "名词",
       contextualMeaning: "在这段话中，lead 表示一种有毒的重金属。",
       example: "The pipe contained lead. 这根管道含有铅。",
+      phrase: "lead paint",
       confidence: 0.9,
       provider: "fake"
     };
@@ -35,6 +36,7 @@ function translateLead(selectedText: string, context: string): TranslationResult
     partOfSpeech: "动词",
     contextualMeaning: "在这段话中，lead 表示带领或主持某项活动。",
     example: "She will lead review. 她将主持这次评审。",
+    phrase: "lead a review",
     confidence: 0.9,
     provider: "fake"
   };

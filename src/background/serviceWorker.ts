@@ -1,4 +1,5 @@
 import { createTranslationProviderFromSettings } from "../providers/providerFactory";
+import { createChromeTranslationBubbleSettingsStore } from "../settings/translationBubbleSettings";
 import { createChromeTranslationSettingsStore } from "../settings/translationSettings";
 import { createChromeVocabularyHighlightSettingsStore } from "../settings/vocabularyHighlightSettings";
 import { getWebExtensionApi } from "../shared/webExtensionApi";
@@ -8,6 +9,7 @@ import { createBackgroundHandler } from "./handlers";
 const extensionApi = getWebExtensionApi();
 const settingsStore = createChromeTranslationSettingsStore();
 const highlightSettingsStore = createChromeVocabularyHighlightSettingsStore();
+const translationBubbleSettingsStore = createChromeTranslationBubbleSettingsStore();
 
 const handleMessage = createBackgroundHandler({
   provider: {
@@ -18,7 +20,8 @@ const handleMessage = createBackgroundHandler({
   },
   store: createChromeVocabularyStore(),
   settingsStore,
-  highlightSettingsStore
+  highlightSettingsStore,
+  translationBubbleSettingsStore
 });
 
 extensionApi.runtime.onMessage?.addListener((message, _sender, sendResponse) => {

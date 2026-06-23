@@ -3,10 +3,12 @@ import { createTranslationTooltip } from "./tooltip";
 
 const result: TranslationResult = {
   selectedText: "lead",
+  baseForm: "lead",
   translation: "带领；主持",
-  partOfSpeech: "verb",
-  contextualMeaning: "Guide or direct an activity.",
-  example: "She will lead the review.",
+  partOfSpeech: "动词",
+  contextualMeaning: "在这段话中，lead 表示带领或主持某项活动。",
+  example: "She will lead the review. 她将主持这次评审。",
+  phrase: "lead a review",
   provider: "fake"
 };
 
@@ -123,7 +125,7 @@ describe("translation tooltip", () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
-  it("renders only the Chinese meaning and save action after translation", () => {
+  it("renders contextual learning details and save action after translation", () => {
     const onSave = vi.fn();
     createTranslationTooltip({
       mode: "result",
@@ -133,12 +135,13 @@ describe("translation tooltip", () => {
       onClose: vi.fn()
     });
 
-    expect(tooltipRoot().textContent).toContain("带领；主持");
-    expect(tooltipRoot().textContent).not.toContain(result.selectedText);
-    expect(tooltipRoot().textContent).not.toContain(result.partOfSpeech ?? "");
-    expect(tooltipRoot().textContent).not.toContain(result.example ?? "");
-    expect(tooltipRoot().textContent).not.toContain(result.contextualMeaning);
-    expect(tooltipRoot().querySelector(".openen-meaning")).toBeNull();
+    const text = tooltipRoot().textContent ?? "";
+    expect(tooltipRoot().querySelector("[data-openen-result-card]")).toBeInstanceOf(HTMLElement);
+    expect(text).toContain("带领；主持");
+    expect(text).toContain("动词 · lead");
+    expect(text).toContain("在这段话中，lead 表示带领或主持某项活动。");
+    expect(text).toContain("She will lead the review. 她将主持这次评审。");
+    expect(text).toContain("lead a review");
     expect(saveButton().textContent).toBe("加入生词本");
     expect(closeButton().textContent).toBe("关闭");
     saveButton().click();

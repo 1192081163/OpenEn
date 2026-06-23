@@ -19,6 +19,7 @@ function translateLead(selectedText, context) {
       partOfSpeech: "\u540D\u8BCD",
       contextualMeaning: "\u5728\u8FD9\u6BB5\u8BDD\u4E2D\uFF0Clead \u8868\u793A\u4E00\u79CD\u6709\u6BD2\u7684\u91CD\u91D1\u5C5E\u3002",
       example: "The pipe contained lead. \u8FD9\u6839\u7BA1\u9053\u542B\u6709\u94C5\u3002",
+      phrase: "lead paint",
       confidence: 0.9,
       provider: "fake"
     };
@@ -30,6 +31,7 @@ function translateLead(selectedText, context) {
     partOfSpeech: "\u52A8\u8BCD",
     contextualMeaning: "\u5728\u8FD9\u6BB5\u8BDD\u4E2D\uFF0Clead \u8868\u793A\u5E26\u9886\u6216\u4E3B\u6301\u67D0\u9879\u6D3B\u52A8\u3002",
     example: "She will lead review. \u5979\u5C06\u4E3B\u6301\u8FD9\u6B21\u8BC4\u5BA1\u3002",
+    phrase: "lead a review",
     confidence: 0.9,
     provider: "fake"
   };
@@ -74,7 +76,7 @@ function buildMessages(request) {
   return [
     {
       role: "system",
-      content: "You are a precise English-to-Simplified-Chinese dictionary translator. Output only json. Return valid JSON with baseForm, translation, partOfSpeech, contextualMeaning, example, and confidence."
+      content: "You are a precise English-to-Simplified-Chinese dictionary translator. Output only json. Return valid JSON with baseForm, translation, partOfSpeech, contextualMeaning, example, phrase, and confidence."
     },
     {
       role: "user",
@@ -89,6 +91,7 @@ function buildMessages(request) {
           partOfSpeech: "\u52A8\u8BCD",
           contextualMeaning: "\u5728\u8FD9\u6BB5\u8BDD\u4E2D\uFF0Clead \u8868\u793A\u5E26\u9886\u6216\u4E3B\u6301\u67D0\u9879\u6D3B\u52A8\u3002",
           example: "She will lead the review. \u5979\u5C06\u4E3B\u6301\u8FD9\u6B21\u8BC4\u5BA1\u3002",
+          phrase: "lead a review",
           confidence: 0.9
         }
       })
@@ -133,6 +136,7 @@ function createDeepSeekTranslationProvider(options) {
       const contextualMeaning = optionalString(parsed.contextualMeaning);
       const partOfSpeech = optionalString(parsed.partOfSpeech);
       const example = optionalString(parsed.example);
+      const phrase = optionalString(parsed.phrase);
       const confidence = clampConfidence(parsed.confidence);
       if (!translation || !contextualMeaning) {
         throw new Error("DeepSeek response missing required fields");
@@ -144,6 +148,7 @@ function createDeepSeekTranslationProvider(options) {
         contextualMeaning,
         ...partOfSpeech ? { partOfSpeech } : {},
         ...example ? { example } : {},
+        ...phrase ? { phrase } : {},
         ...confidence !== void 0 ? { confidence } : {},
         provider: "deepseek"
       };
@@ -266,10 +271,43 @@ function getWebExtensionApi() {
   return extensionApi2;
 }
 
+// src/settings/translationBubbleSettings.ts
+var TRANSLATION_BUBBLE_SETTINGS_KEY = "openen:translation-bubble-settings";
+function isRecord(value) {
+  return typeof value === "object" && value !== null;
+}
+function getDefaultTranslationBubbleSettings() {
+  return { enabled: true };
+}
+function normalizeStoredSettings(value) {
+  if (!isRecord(value) || typeof value.enabled !== "boolean") {
+    return getDefaultTranslationBubbleSettings();
+  }
+  return { enabled: value.enabled };
+}
+async function loadTranslationBubbleSettings(storage) {
+  const values = await storage.get(TRANSLATION_BUBBLE_SETTINGS_KEY);
+  return normalizeStoredSettings(values[TRANSLATION_BUBBLE_SETTINGS_KEY]);
+}
+async function saveTranslationBubbleSettings(storage, input) {
+  const settings = { enabled: input.enabled };
+  await storage.set({ [TRANSLATION_BUBBLE_SETTINGS_KEY]: settings });
+  return settings;
+}
+function createTranslationBubbleSettingsStore(storage) {
+  return {
+    load: () => loadTranslationBubbleSettings(storage),
+    save: (input) => saveTranslationBubbleSettings(storage, input)
+  };
+}
+function createChromeTranslationBubbleSettingsStore() {
+  return createTranslationBubbleSettingsStore(getWebExtensionApi().storage.local);
+}
+
 // src/settings/translationSettings.ts
 var TRANSLATION_SETTINGS_KEY = "openen:translation-settings";
 var DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash";
-function isRecord(value) {
+function isRecord2(value) {
   return typeof value === "object" && value !== null;
 }
 function getDefaultTranslationSettings() {
@@ -281,8 +319,8 @@ function getDefaultTranslationSettings() {
     }
   };
 }
-function normalizeStoredSettings(value) {
-  if (!isRecord(value) || value.provider !== "deepseek" || !isRecord(value.deepseek)) {
+function normalizeStoredSettings2(value) {
+  if (!isRecord2(value) || value.provider !== "deepseek" || !isRecord2(value.deepseek)) {
     return getDefaultTranslationSettings();
   }
   const apiKey = typeof value.deepseek.apiKey === "string" ? value.deepseek.apiKey.trim() : "";
@@ -295,7 +333,7 @@ function normalizeStoredSettings(value) {
 }
 async function loadTranslationSettings(storage) {
   const values = await storage.get(TRANSLATION_SETTINGS_KEY);
-  return normalizeStoredSettings(values[TRANSLATION_SETTINGS_KEY]);
+  return normalizeStoredSettings2(values[TRANSLATION_SETTINGS_KEY]);
 }
 async function saveDeepSeekSettings(storage, input) {
   const apiKey = input.apiKey.trim();
@@ -322,21 +360,21 @@ function createChromeTranslationSettingsStore() {
 
 // src/settings/vocabularyHighlightSettings.ts
 var VOCABULARY_HIGHLIGHT_SETTINGS_KEY = "openen:vocabulary-highlight-settings";
-function isRecord2(value) {
+function isRecord3(value) {
   return typeof value === "object" && value !== null;
 }
 function getDefaultVocabularyHighlightSettings() {
   return { enabled: true };
 }
-function normalizeStoredSettings2(value) {
-  if (!isRecord2(value) || typeof value.enabled !== "boolean") {
+function normalizeStoredSettings3(value) {
+  if (!isRecord3(value) || typeof value.enabled !== "boolean") {
     return getDefaultVocabularyHighlightSettings();
   }
   return { enabled: value.enabled };
 }
 async function loadVocabularyHighlightSettings(storage) {
   const values = await storage.get(VOCABULARY_HIGHLIGHT_SETTINGS_KEY);
-  return normalizeStoredSettings2(values[VOCABULARY_HIGHLIGHT_SETTINGS_KEY]);
+  return normalizeStoredSettings3(values[VOCABULARY_HIGHLIGHT_SETTINGS_KEY]);
 }
 async function saveVocabularyHighlightSettings(storage, input) {
   const settings = { enabled: input.enabled };
@@ -363,7 +401,7 @@ function isOptionalString(value) {
 }
 function isVocabularyEntry(value) {
   if (!isStringRecord(value)) return false;
-  return typeof value.id === "string" && typeof value.selectedText === "string" && isOptionalString(value.baseForm) && typeof value.translation === "string" && isOptionalString(value.partOfSpeech) && typeof value.contextualMeaning === "string" && isOptionalString(value.example) && typeof value.paragraphContext === "string" && typeof value.sourceUrl === "string" && typeof value.pageTitle === "string" && typeof value.createdAt === "string" && typeof value.provider === "string";
+  return typeof value.id === "string" && typeof value.selectedText === "string" && isOptionalString(value.baseForm) && typeof value.translation === "string" && isOptionalString(value.partOfSpeech) && typeof value.contextualMeaning === "string" && isOptionalString(value.example) && isOptionalString(value.phrase) && typeof value.paragraphContext === "string" && typeof value.sourceUrl === "string" && typeof value.pageTitle === "string" && typeof value.createdAt === "string" && typeof value.provider === "string";
 }
 function sortNewestFirst(entries) {
   return [...entries].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
@@ -371,7 +409,7 @@ function sortNewestFirst(entries) {
 function matchesQuery(entry, query) {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
-  return [entry.selectedText, entry.baseForm ?? "", entry.translation, entry.pageTitle, entry.contextualMeaning].join(" ").toLowerCase().includes(needle);
+  return [entry.selectedText, entry.baseForm ?? "", entry.translation, entry.pageTitle, entry.contextualMeaning, entry.phrase ?? ""].join(" ").toLowerCase().includes(needle);
 }
 function duplicateKey(entry) {
   return (entry.baseForm || entry.selectedText).trim().toLowerCase();
@@ -442,7 +480,7 @@ function createChromeVocabularyStore() {
 }
 
 // src/shared/messages.ts
-function isRecord3(value) {
+function isRecord4(value) {
   return typeof value === "object" && value !== null;
 }
 function hasString(record, key) {
@@ -459,6 +497,7 @@ var vocabularyEntryStringFields = [
   "partOfSpeech",
   "contextualMeaning",
   "example",
+  "phrase",
   "paragraphContext",
   "sourceUrl",
   "pageTitle",
@@ -471,37 +510,43 @@ function hasValidKnownVocabularyEntryFields(entry) {
   );
 }
 function isTranslateSelectionMessage(value) {
-  return isRecord3(value) && value.type === "TRANSLATE_SELECTION" /* TranslateSelection */ && isRecord3(value.payload) && hasString(value.payload, "selectedText") && hasString(value.payload, "paragraphContext") && hasString(value.payload, "sourceUrl") && hasString(value.payload, "pageTitle");
+  return isRecord4(value) && value.type === "TRANSLATE_SELECTION" /* TranslateSelection */ && isRecord4(value.payload) && hasString(value.payload, "selectedText") && hasString(value.payload, "paragraphContext") && hasString(value.payload, "sourceUrl") && hasString(value.payload, "pageTitle");
 }
 function isAddVocabularyMessage(value) {
-  return isRecord3(value) && value.type === "ADD_VOCABULARY" /* AddVocabulary */ && isRecord3(value.payload) && isRecord3(value.payload.entry) && hasValidKnownVocabularyEntryFields(value.payload.entry);
+  return isRecord4(value) && value.type === "ADD_VOCABULARY" /* AddVocabulary */ && isRecord4(value.payload) && isRecord4(value.payload.entry) && hasValidKnownVocabularyEntryFields(value.payload.entry);
 }
 function isListVocabularyMessage(value) {
-  return isRecord3(value) && value.type === "LIST_VOCABULARY" /* ListVocabulary */;
+  return isRecord4(value) && value.type === "LIST_VOCABULARY" /* ListVocabulary */;
 }
 function isSearchVocabularyMessage(value) {
-  return isRecord3(value) && value.type === "SEARCH_VOCABULARY" /* SearchVocabulary */ && isRecord3(value.payload) && hasString(value.payload, "query");
+  return isRecord4(value) && value.type === "SEARCH_VOCABULARY" /* SearchVocabulary */ && isRecord4(value.payload) && hasString(value.payload, "query");
 }
 function isDeleteVocabularyMessage(value) {
-  return isRecord3(value) && value.type === "DELETE_VOCABULARY" /* DeleteVocabulary */ && isRecord3(value.payload) && hasString(value.payload, "id");
+  return isRecord4(value) && value.type === "DELETE_VOCABULARY" /* DeleteVocabulary */ && isRecord4(value.payload) && hasString(value.payload, "id");
 }
 function isExportVocabularyMessage(value) {
-  return isRecord3(value) && value.type === "EXPORT_VOCABULARY" /* ExportVocabulary */ && isRecord3(value.payload) && (value.payload.format === "json" || value.payload.format === "csv");
+  return isRecord4(value) && value.type === "EXPORT_VOCABULARY" /* ExportVocabulary */ && isRecord4(value.payload) && (value.payload.format === "json" || value.payload.format === "csv");
 }
 function isGetTranslationSettingsMessage(value) {
-  return isRecord3(value) && value.type === "GET_TRANSLATION_SETTINGS" /* GetTranslationSettings */;
+  return isRecord4(value) && value.type === "GET_TRANSLATION_SETTINGS" /* GetTranslationSettings */;
 }
 function isSaveDeepSeekSettingsMessage(value) {
-  return isRecord3(value) && value.type === "SAVE_DEEPSEEK_SETTINGS" /* SaveDeepSeekSettings */ && isRecord3(value.payload) && hasString(value.payload, "apiKey") && hasOptionalString(value.payload, "model");
+  return isRecord4(value) && value.type === "SAVE_DEEPSEEK_SETTINGS" /* SaveDeepSeekSettings */ && isRecord4(value.payload) && hasString(value.payload, "apiKey") && hasOptionalString(value.payload, "model");
 }
 function isClearDeepSeekSettingsMessage(value) {
-  return isRecord3(value) && value.type === "CLEAR_DEEPSEEK_SETTINGS" /* ClearDeepSeekSettings */;
+  return isRecord4(value) && value.type === "CLEAR_DEEPSEEK_SETTINGS" /* ClearDeepSeekSettings */;
 }
 function isGetVocabularyHighlightSettingsMessage(value) {
-  return isRecord3(value) && value.type === "GET_VOCABULARY_HIGHLIGHT_SETTINGS" /* GetVocabularyHighlightSettings */;
+  return isRecord4(value) && value.type === "GET_VOCABULARY_HIGHLIGHT_SETTINGS" /* GetVocabularyHighlightSettings */;
 }
 function isSaveVocabularyHighlightSettingsMessage(value) {
-  return isRecord3(value) && value.type === "SAVE_VOCABULARY_HIGHLIGHT_SETTINGS" /* SaveVocabularyHighlightSettings */ && isRecord3(value.payload) && typeof value.payload.enabled === "boolean";
+  return isRecord4(value) && value.type === "SAVE_VOCABULARY_HIGHLIGHT_SETTINGS" /* SaveVocabularyHighlightSettings */ && isRecord4(value.payload) && typeof value.payload.enabled === "boolean";
+}
+function isGetTranslationBubbleSettingsMessage(value) {
+  return isRecord4(value) && value.type === "GET_TRANSLATION_BUBBLE_SETTINGS" /* GetTranslationBubbleSettings */;
+}
+function isSaveTranslationBubbleSettingsMessage(value) {
+  return isRecord4(value) && value.type === "SAVE_TRANSLATION_BUBBLE_SETTINGS" /* SaveTranslationBubbleSettings */ && isRecord4(value.payload) && typeof value.payload.enabled === "boolean";
 }
 
 // src/storage/exportVocabulary.ts
@@ -512,6 +557,7 @@ var CSV_COLUMNS = [
   "partOfSpeech",
   "contextualMeaning",
   "example",
+  "phrase",
   "paragraphContext",
   "sourceUrl",
   "pageTitle",
@@ -569,6 +615,7 @@ function completeEntry(partial, now, id) {
   if (partial.baseForm !== void 0) entry.baseForm = partial.baseForm;
   if (partial.partOfSpeech !== void 0) entry.partOfSpeech = partial.partOfSpeech;
   if (partial.example !== void 0) entry.example = partial.example;
+  if (partial.phrase !== void 0) entry.phrase = partial.phrase;
   return entry;
 }
 function createBackgroundHandler(dependencies) {
@@ -618,6 +665,14 @@ function createBackgroundHandler(dependencies) {
         if (!dependencies.highlightSettingsStore) return failure("Vocabulary highlight settings unavailable");
         return success(await dependencies.highlightSettingsStore.save(message.payload));
       }
+      if (isGetTranslationBubbleSettingsMessage(message)) {
+        if (!dependencies.translationBubbleSettingsStore) return failure("Translation bubble settings unavailable");
+        return success(await dependencies.translationBubbleSettingsStore.load());
+      }
+      if (isSaveTranslationBubbleSettingsMessage(message)) {
+        if (!dependencies.translationBubbleSettingsStore) return failure("Translation bubble settings unavailable");
+        return success(await dependencies.translationBubbleSettingsStore.save(message.payload));
+      }
       return failure("Unsupported message");
     } catch (error) {
       return failure(error instanceof Error ? error.message : "Unknown background error");
@@ -630,6 +685,7 @@ function createBackgroundHandler(dependencies) {
 var extensionApi = getWebExtensionApi();
 var settingsStore = createChromeTranslationSettingsStore();
 var highlightSettingsStore = createChromeVocabularyHighlightSettingsStore();
+var translationBubbleSettingsStore = createChromeTranslationBubbleSettingsStore();
 var handleMessage = createBackgroundHandler({
   provider: {
     async translate(request) {
@@ -639,7 +695,8 @@ var handleMessage = createBackgroundHandler({
   },
   store: createChromeVocabularyStore(),
   settingsStore,
-  highlightSettingsStore
+  highlightSettingsStore,
+  translationBubbleSettingsStore
 });
 extensionApi.runtime.onMessage?.addListener((message, _sender, sendResponse) => {
   handleMessage(message).then(sendResponse);

@@ -1,5 +1,15 @@
-import { isTranslationSettingsView, isVocabularyHighlightSettingsView, MessageType } from "../../shared/messages";
-import type { TranslationSettingsView, VocabularyEntry, VocabularyHighlightSettingsView } from "../../shared/types";
+import {
+  isTranslationBubbleSettingsView,
+  isTranslationSettingsView,
+  isVocabularyHighlightSettingsView,
+  MessageType
+} from "../../shared/messages";
+import type {
+  TranslationBubbleSettingsView,
+  TranslationSettingsView,
+  VocabularyEntry,
+  VocabularyHighlightSettingsView
+} from "../../shared/types";
 import { getWebExtensionApi, hasWebExtensionApi } from "../../shared/webExtensionApi";
 
 interface RenderPopupOptions {
@@ -12,6 +22,7 @@ interface InitPopupOptions {
   sendMessage(message: unknown): Promise<unknown>;
   openOptionsPage(): void;
   notifyVocabularyHighlightSettingsChanged?(enabled: boolean): void;
+  notifyTranslationBubbleSettingsChanged?(enabled: boolean): void;
 }
 
 const LOAD_FAILURE_TEXT = "Unable to load saved words.";
@@ -101,8 +112,17 @@ function getHighlightToggle(): HTMLInputElement | undefined {
   return document.querySelector<HTMLInputElement>("#highlightVocabulary") ?? undefined;
 }
 
+function getTranslationBubbleToggle(): HTMLInputElement | undefined {
+  return document.querySelector<HTMLInputElement>("#translationBubble") ?? undefined;
+}
+
 function renderHighlightSettings(settings: VocabularyHighlightSettingsView): void {
   const toggle = getHighlightToggle();
+  if (toggle) toggle.checked = settings.enabled;
+}
+
+function renderTranslationBubbleSettings(settings: TranslationBubbleSettingsView): void {
+  const toggle = getTranslationBubbleToggle();
   if (toggle) toggle.checked = settings.enabled;
 }
 
@@ -110,6 +130,13 @@ async function loadAndRenderHighlightSettings(sendMessage: InitPopupOptions["sen
   const response = await sendMessage({ type: MessageType.GetVocabularyHighlightSettings });
   if (isRecord(response) && response.ok === true && isVocabularyHighlightSettingsView(response.data)) {
     renderHighlightSettings(response.data);
+  }
+}
+
+async function loadAndRenderTranslationBubbleSettings(sendMessage: InitPopupOptions["sendMessage"]): Promise<void> {
+  const response = await sendMessage({ type: MessageType.GetTranslationBubbleSettings });
+  if (isRecord(response) && response.ok === true && isTranslationBubbleSettingsView(response.data)) {
+    renderTranslationBubbleSettings(response.data);
   }
 }
 
@@ -129,6 +156,27 @@ function bindHighlightToggle(
       if (isRecord(response) && response.ok === true && isVocabularyHighlightSettingsView(response.data)) {
         renderHighlightSettings(response.data);
         notifyVocabularyHighlightSettingsChanged?.(response.data.enabled);
+      }
+    });
+  };
+}
+
+function bindTranslationBubbleToggle(
+  sendMessage: InitPopupOptions["sendMessage"],
+  notifyTranslationBubbleSettingsChanged?: (enabled: boolean) => void
+): void {
+  const toggle = getTranslationBubbleToggle();
+  if (!toggle) return;
+
+  toggle.onchange = () => {
+    const enabled = toggle.checked;
+    void sendMessage({
+      type: MessageType.SaveTranslationBubbleSettings,
+      payload: { enabled }
+    }).then((response) => {
+      if (isRecord(response) && response.ok === true && isTranslationBubbleSettingsView(response.data)) {
+        renderTranslationBubbleSettings(response.data);
+        notifyTranslationBubbleSettingsChanged?.(response.data.enabled);
       }
     });
   };
@@ -166,16 +214,18 @@ export function renderPopup(options: RenderPopupOptions): void {
 export async function initPopup(options: InitPopupOptions): Promise<void> {
   const openVocabulary = () => options.openOptionsPage();
 
-  bindSettingsForm(options.sendMessage);
-  bindHighlightToggle(options.sendMessage, options.notifyVocabularyHighlightSettingsChanged);
+bindSettingsForm(options.sendMessage);
+bindHighlightToggle(options.sendMessage, options.notifyVocabularyHighlightSettingsChanged);
+bindTranslationBubbleToggle(options.sendMessage, options.notifyTranslationBubbleSettingsChanged);
 
   try {
     const response = await options.sendMessage({ type: MessageType.ListVocabulary });
     if (isVocabularyListResponse(response)) {
       renderPopup({ entries: response.data, openVocabulary });
-      await loadAndRenderSettings(options.sendMessage);
-      await loadAndRenderHighlightSettings(options.sendMessage);
-      return;
+await loadAndRenderSettings(options.sendMessage);
+await loadAndRenderHighlightSettings(options.sendMessage);
+await loadAndRenderTranslationBubbleSettings(options.sendMessage);
+return;
     }
   } catch {
     // Render the same failure state for rejected extension messaging.
@@ -198,6 +248,20 @@ function notifyActiveTabVocabularyHighlightSettingsChanged(enabled: boolean): vo
   });
 }
 
+function notifyActiveTabTranslationBubbleSettingsChanged(enabled: boolean): void {
+  const tabsApi = getWebExtensionApi().tabs;
+  if (!tabsApi) return;
+
+  void tabsApi.query({ active: true, currentWindow: true }).then((tabs) => {
+    const tabId = tabs[0]?.id;
+    if (typeof tabId !== "number") return;
+    void tabsApi.sendMessage(tabId, {
+      type: MessageType.SaveTranslationBubbleSettings,
+      payload: { enabled }
+    });
+  });
+}
+
 async function init(): Promise<void> {
   const extensionApi = getWebExtensionApi();
   renderPopup({
@@ -208,11 +272,12 @@ async function init(): Promise<void> {
   });
 
   await initPopup({
-    sendMessage: (message) => extensionApi.runtime.sendMessage(message),
-    openOptionsPage: () => {
-      void extensionApi.runtime.openOptionsPage();
-    },
-    notifyVocabularyHighlightSettingsChanged: notifyActiveTabVocabularyHighlightSettingsChanged
+  sendMessage: (message) => extensionApi.runtime.sendMessage(message),
+  openOptionsPage: () => {
+    void extensionApi.runtime.openOptionsPage();
+  },
+  notifyVocabularyHighlightSettingsChanged: notifyActiveTabVocabularyHighlightSettingsChanged,
+  notifyTranslationBubbleSettingsChanged: notifyActiveTabTranslationBubbleSettingsChanged
   });
 }
 

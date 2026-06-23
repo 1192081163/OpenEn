@@ -1,5 +1,10 @@
-import { MessageType } from "../shared/messages";
-import type { SelectionPayload, TranslationProviderName, TranslationResult, VocabularyEntry } from "../shared/types";
+import { isSaveTranslationBubbleSettingsMessage, isTranslationBubbleSettingsView, MessageType } from "../shared/messages";
+import type {
+  SelectionPayload,
+  TranslationProviderName,
+  TranslationResult,
+  VocabularyEntry
+} from "../shared/types";
 import { getWebExtensionApi, hasWebExtensionApi } from "../shared/webExtensionApi";
 import { extractSelectionContext } from "./selectionContext";
 import { createTranslationTooltip, removeTranslationTooltip } from "./tooltip";
@@ -20,6 +25,8 @@ interface HandleSelectionOptions {
 
 interface StartContentScriptOptions {
   enableVocabularyHighlighting?: boolean;
+  enableTranslationBubble?: boolean;
+  loadTranslationBubbleSettings?: boolean;
 }
 
 interface TranslateSelectionBehavior {
@@ -36,8 +43,12 @@ function isTranslationResult(value: unknown): value is TranslationResult {
   const record = value as Record<string, unknown>;
   return (
     hasStringField(record, "selectedText") &&
+    (record.baseForm === undefined || hasStringField(record, "baseForm")) &&
     hasStringField(record, "translation") &&
+    (record.partOfSpeech === undefined || hasStringField(record, "partOfSpeech")) &&
     hasStringField(record, "contextualMeaning") &&
+    (record.example === undefined || hasStringField(record, "example")) &&
+    (record.phrase === undefined || hasStringField(record, "phrase")) &&
     hasStringField(record, "provider")
   );
 }
@@ -55,6 +66,7 @@ function isVocabularyEntry(value: unknown): value is VocabularyEntry {
     (record.baseForm === undefined || hasStringField(record, "baseForm")) &&
     hasStringField(record, "translation") &&
     hasStringField(record, "contextualMeaning") &&
+    (record.phrase === undefined || hasStringField(record, "phrase")) &&
     hasStringField(record, "provider")
   );
 }
@@ -112,6 +124,7 @@ function vocabularyEntryToTranslationResult(entry: VocabularyEntry, selectedText
   if (entry.baseForm !== undefined) result.baseForm = entry.baseForm;
   if (entry.partOfSpeech !== undefined) result.partOfSpeech = entry.partOfSpeech;
   if (entry.example !== undefined) result.example = entry.example;
+  if (entry.phrase !== undefined) result.phrase = entry.phrase;
   return result;
 }
 
@@ -380,6 +393,7 @@ export function startContentScript(
   let disposed = false;
   let generation = 0;
   let debounceTimer: number | undefined;
+  let translationBubbleEnabled = options.enableTranslationBubble !== false;
   const stopVocabularyHighlighter =
     options.enableVocabularyHighlighting === false ? undefined : startVocabularyHighlighter(sendMessage);
 
@@ -400,8 +414,44 @@ export function startContentScript(
     removeTranslationTooltip();
   };
 
+  const setTranslationBubbleEnabled = (enabled: boolean): void => {
+    translationBubbleEnabled = enabled;
+    if (!enabled) dismiss();
+  };
+
+  if (options.loadTranslationBubbleSettings === true) {
+    void sendMessage({ type: MessageType.GetTranslationBubbleSettings }).then((response) => {
+      if (disposed) return;
+      if (response?.ok === true && isTranslationBubbleSettingsView(response.data)) {
+        setTranslationBubbleEnabled(response.data.enabled);
+      }
+    });
+  }
+
+  let removeRuntimeMessageListener: (() => void) | undefined;
+  try {
+    const runtime = getWebExtensionApi().runtime;
+    if (runtime.onMessage) {
+      const onRuntimeMessage = (message: unknown): void => {
+        if (isSaveTranslationBubbleSettingsMessage(message)) {
+          setTranslationBubbleEnabled(message.payload.enabled);
+        }
+      };
+      runtime.onMessage.addListener(onRuntimeMessage);
+      removeRuntimeMessageListener = () => {
+        runtime.onMessage?.removeListener?.(onRuntimeMessage);
+      };
+    }
+  } catch {
+    // Content-script tests and non-extension previews may not expose runtime events.
+  }
+
   const onSelectionChange = (): void => {
     invalidate();
+    if (!translationBubbleEnabled) {
+      removeTranslationTooltip();
+      return;
+    }
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
       removeTranslationTooltip();
@@ -445,6 +495,7 @@ export function startContentScript(
     invalidate();
     removeTranslationTooltip();
     stopVocabularyHighlighter?.();
+    removeRuntimeMessageListener?.();
     document.removeEventListener("selectionchange", onSelectionChange);
     document.removeEventListener("keydown", onKeyDown);
     document.removeEventListener("scroll", dismiss, true);
@@ -459,5 +510,5 @@ function canAutoStart(): boolean {
 }
 
 if (canAutoStart()) {
-  startContentScript();
+  startContentScript(runtimeSendMessage, { loadTranslationBubbleSettings: true });
 }

@@ -1,5 +1,16 @@
 "use strict";
 (() => {
+  // src/shared/messages.ts
+  function isRecord(value) {
+    return typeof value === "object" && value !== null;
+  }
+  function isSaveTranslationBubbleSettingsMessage(value) {
+    return isRecord(value) && value.type === "SAVE_TRANSLATION_BUBBLE_SETTINGS" /* SaveTranslationBubbleSettings */ && isRecord(value.payload) && typeof value.payload.enabled === "boolean";
+  }
+  function isTranslationBubbleSettingsView(value) {
+    return isRecord(value) && typeof value.enabled === "boolean";
+  }
+
   // src/shared/webExtensionApi.ts
   function hasUsableCapability(api) {
     return Boolean(
@@ -326,6 +337,25 @@
     element.style.fontSize = "13px";
     return element;
   }
+  function optionalText(value) {
+    return typeof value === "string" ? value.trim() : "";
+  }
+  function resultMeta(result) {
+    return [optionalText(result.partOfSpeech), optionalText(result.baseForm ?? result.selectedText)].filter(Boolean).join(" \xB7 ");
+  }
+  function appendDetail(parent, label, value) {
+    const text = optionalText(value);
+    if (!text) return;
+    const row = document.createElement("div");
+    row.className = "openen-detail";
+    const labelElement = document.createElement("span");
+    labelElement.className = "openen-detail-label";
+    labelElement.textContent = label;
+    const valueElement = document.createElement("span");
+    valueElement.textContent = text;
+    row.append(labelElement, valueElement);
+    parent.append(row);
+  }
   function removeTranslationTooltip() {
     removeExisting();
   }
@@ -367,6 +397,30 @@
 
     .openen-translation {
       margin-top: 6px;
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .openen-result-card {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .openen-meta {
+      color: #57606a;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .openen-detail {
+      line-height: 1.4;
+    }
+
+    .openen-detail-label {
+      color: #57606a;
+      margin-right: 4px;
     }
 
     .openen-actions {
@@ -429,9 +483,23 @@
       panel.append(title, message);
       actions.append(retry, close);
     } else {
+      const card = document.createElement("div");
+      card.className = "openen-result-card";
+      card.setAttribute("data-openen-result-card", "");
       const translation = document.createElement("div");
       translation.className = "openen-translation";
       translation.textContent = options.result.translation;
+      card.append(translation);
+      const metaText = resultMeta(options.result);
+      if (metaText) {
+        const meta = document.createElement("div");
+        meta.className = "openen-meta";
+        meta.textContent = metaText;
+        card.append(meta);
+      }
+      appendDetail(card, "\u8BED\u5883", options.result.contextualMeaning);
+      appendDetail(card, "\u4F8B\u53E5", options.result.example);
+      appendDetail(card, "\u77ED\u8BED", options.result.phrase);
       const save = button(options.saved ? "\u5DF2\u52A0\u5165" : "\u52A0\u5165\u751F\u8BCD\u672C", "data-openen-save");
       save.disabled = options.saved === true;
       if (!options.saved) save.addEventListener("click", options.onSave);
@@ -440,7 +508,7 @@
         refresh.addEventListener("click", options.onRefresh);
         actions.append(refresh);
       }
-      panel.append(translation);
+      panel.append(card);
       actions.append(save, close);
     }
     panel.append(actions);
@@ -470,17 +538,17 @@
     HIGHLIGHT_SELECTOR
   ].join(",");
   var SCAN_DEBOUNCE_MS = 80;
-  function isRecord(value) {
+  function isRecord2(value) {
     return typeof value === "object" && value !== null;
   }
   function isHighlightSettings(value) {
-    return isRecord(value) && typeof value.enabled === "boolean";
+    return isRecord2(value) && typeof value.enabled === "boolean";
   }
   function isVocabularyEntry(value) {
-    return isRecord(value) && typeof value.selectedText === "string" && (value.baseForm === void 0 || typeof value.baseForm === "string");
+    return isRecord2(value) && typeof value.selectedText === "string" && (value.baseForm === void 0 || typeof value.baseForm === "string");
   }
   function isVocabularyHighlightSettingsMessage(value) {
-    return isRecord(value) && value.type === "SAVE_VOCABULARY_HIGHLIGHT_SETTINGS" /* SaveVocabularyHighlightSettings */ && isRecord(value.payload) && typeof value.payload.enabled === "boolean";
+    return isRecord2(value) && value.type === "SAVE_VOCABULARY_HIGHLIGHT_SETTINGS" /* SaveVocabularyHighlightSettings */ && isRecord2(value.payload) && typeof value.payload.enabled === "boolean";
   }
   function getRuntimeMessageBus() {
     if (!hasWebExtensionApi()) return void 0;
@@ -648,7 +716,7 @@
   function isTranslationResult(value) {
     if (typeof value !== "object" || value === null) return false;
     const record = value;
-    return hasStringField(record, "selectedText") && hasStringField(record, "translation") && hasStringField(record, "contextualMeaning") && hasStringField(record, "provider");
+    return hasStringField(record, "selectedText") && (record.baseForm === void 0 || hasStringField(record, "baseForm")) && hasStringField(record, "translation") && (record.partOfSpeech === void 0 || hasStringField(record, "partOfSpeech")) && hasStringField(record, "contextualMeaning") && (record.example === void 0 || hasStringField(record, "example")) && (record.phrase === void 0 || hasStringField(record, "phrase")) && hasStringField(record, "provider");
   }
   function isTranslationProviderName(value) {
     return value === "fake" || value === "deepseek" || value === "openai" || value === "external";
@@ -656,7 +724,7 @@
   function isVocabularyEntry2(value) {
     if (typeof value !== "object" || value === null) return false;
     const record = value;
-    return hasStringField(record, "id") && hasStringField(record, "selectedText") && (record.baseForm === void 0 || hasStringField(record, "baseForm")) && hasStringField(record, "translation") && hasStringField(record, "contextualMeaning") && hasStringField(record, "provider");
+    return hasStringField(record, "id") && hasStringField(record, "selectedText") && (record.baseForm === void 0 || hasStringField(record, "baseForm")) && hasStringField(record, "translation") && hasStringField(record, "contextualMeaning") && (record.phrase === void 0 || hasStringField(record, "phrase")) && hasStringField(record, "provider");
   }
   function getTranslationCache(sendMessage) {
     let cache = translationCaches.get(sendMessage);
@@ -703,6 +771,7 @@
     if (entry.baseForm !== void 0) result.baseForm = entry.baseForm;
     if (entry.partOfSpeech !== void 0) result.partOfSpeech = entry.partOfSpeech;
     if (entry.example !== void 0) result.example = entry.example;
+    if (entry.phrase !== void 0) result.phrase = entry.phrase;
     return result;
   }
   async function findSavedVocabularyEntry(payload, sendMessage) {
@@ -892,6 +961,7 @@
     let disposed = false;
     let generation = 0;
     let debounceTimer;
+    let translationBubbleEnabled = options.enableTranslationBubble !== false;
     const stopVocabularyHighlighter = options.enableVocabularyHighlighting === false ? void 0 : startVocabularyHighlighter(sendMessage);
     const clearDebounce = () => {
       if (debounceTimer !== void 0) {
@@ -907,8 +977,40 @@
       invalidate();
       removeTranslationTooltip();
     };
+    const setTranslationBubbleEnabled = (enabled) => {
+      translationBubbleEnabled = enabled;
+      if (!enabled) dismiss();
+    };
+    if (options.loadTranslationBubbleSettings === true) {
+      void sendMessage({ type: "GET_TRANSLATION_BUBBLE_SETTINGS" /* GetTranslationBubbleSettings */ }).then((response) => {
+        if (disposed) return;
+        if (response?.ok === true && isTranslationBubbleSettingsView(response.data)) {
+          setTranslationBubbleEnabled(response.data.enabled);
+        }
+      });
+    }
+    let removeRuntimeMessageListener;
+    try {
+      const runtime = getWebExtensionApi().runtime;
+      if (runtime.onMessage) {
+        const onRuntimeMessage = (message) => {
+          if (isSaveTranslationBubbleSettingsMessage(message)) {
+            setTranslationBubbleEnabled(message.payload.enabled);
+          }
+        };
+        runtime.onMessage.addListener(onRuntimeMessage);
+        removeRuntimeMessageListener = () => {
+          runtime.onMessage?.removeListener?.(onRuntimeMessage);
+        };
+      }
+    } catch {
+    }
     const onSelectionChange = () => {
       invalidate();
+      if (!translationBubbleEnabled) {
+        removeTranslationTooltip();
+        return;
+      }
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed) {
         removeTranslationTooltip();
@@ -943,6 +1045,7 @@
       invalidate();
       removeTranslationTooltip();
       stopVocabularyHighlighter?.();
+      removeRuntimeMessageListener?.();
       document.removeEventListener("selectionchange", onSelectionChange);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("scroll", dismiss, true);
@@ -952,6 +1055,6 @@
     return typeof document !== "undefined" && hasWebExtensionApi();
   }
   if (canAutoStart()) {
-    startContentScript();
+    startContentScript(runtimeSendMessage, { loadTranslationBubbleSettings: true });
   }
 })();

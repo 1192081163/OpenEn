@@ -23,6 +23,12 @@ describe("extension manifest", () => {
     const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8"));
 
     expect(packageJson.scripts["build:safari"]).toBe("node scripts/build.mjs --target safari");
+    expect(packageJson.scripts["postbuild:safari"]).toBe("node scripts/sync-safari-resources.mjs --optional");
+    expect(packageJson.scripts["build:safari:xcode"]).toBe("npm run build:safari");
+    expect(packageJson.scripts["package:chrome"]).toBe("npm run build && node scripts/package-extension.mjs --target chrome");
+    expect(packageJson.scripts["package:edge"]).toBe("npm run build && node scripts/package-extension.mjs --target edge");
+    expect(packageJson.scripts["package:all"]).toBe("npm run package:chrome && npm run package:edge");
+    expect(manifest.version).toBe(packageJson.version);
     expect(manifest.manifest_version).toBe(3);
     expect(manifest.permissions).toEqual(["storage"]);
     expect(manifest.host_permissions).toEqual(["https://api.deepseek.com/*"]);

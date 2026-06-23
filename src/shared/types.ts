@@ -14,6 +14,7 @@ export interface TranslationResult {
   partOfSpeech?: string;
   contextualMeaning: string;
   example?: string;
+  phrase?: string;
   confidence?: number;
   provider: TranslationProviderName;
 }
@@ -26,6 +27,7 @@ export interface VocabularyEntry {
   partOfSpeech?: string;
   contextualMeaning: string;
   example?: string;
+  phrase?: string;
   paragraphContext: string;
   sourceUrl: string;
   pageTitle: string;
@@ -50,6 +52,10 @@ export interface TranslationSettingsView {
 }
 
 export interface VocabularyHighlightSettingsView {
+  enabled: boolean;
+}
+
+export interface TranslationBubbleSettingsView {
   enabled: boolean;
 }
 

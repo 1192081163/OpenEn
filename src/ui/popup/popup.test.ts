@@ -29,9 +29,19 @@ function renderPopupShell(): void {
         <button id="saveDeepSeek" type="submit"></button>
         <button id="clearDeepSeek" type="button"></button>
       </form>
-      <label>
-        <input id="highlightVocabulary" type="checkbox" />
-        高亮生词
+      <label class="switch-row">
+        <span class="switch-label">划词气泡</span>
+        <input id="translationBubble" class="switch-input" type="checkbox" role="switch" />
+        <span class="switch-track" aria-hidden="true">
+          <span class="switch-thumb"></span>
+        </span>
+      </label>
+      <label class="switch-row">
+        <span class="switch-label">高亮生词</span>
+        <input id="highlightVocabulary" class="switch-input" type="checkbox" role="switch" />
+        <span class="switch-track" aria-hidden="true">
+          <span class="switch-thumb"></span>
+        </span>
       </label>
       <ul id="recentWords"></ul>
     </main>
@@ -91,14 +101,15 @@ describe("popup UI", () => {
     const sendMessage = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, data: entries })
-    .mockResolvedValueOnce({
-      ok: true,
-      data: { provider: "local", deepseek: { hasApiKey: false, model: "deepseek-v4-flash", apiKey: "" } }
-    })
-    .mockResolvedValueOnce({ ok: true, data: { enabled: true } })
-    .mockResolvedValueOnce({
-      ok: true,
-      data: { provider: "deepseek", deepseek: { hasApiKey: true, model: "deepseek-v4-flash", apiKey: "" } }
+.mockResolvedValueOnce({
+ok: true,
+data: { provider: "local", deepseek: { hasApiKey: false, model: "deepseek-v4-flash", apiKey: "" } }
+})
+.mockResolvedValueOnce({ ok: true, data: { enabled: true } })
+.mockResolvedValueOnce({ ok: true, data: { enabled: true } })
+.mockResolvedValueOnce({
+ok: true,
+data: { provider: "deepseek", deepseek: { hasApiKey: true, model: "deepseek-v4-flash", apiKey: "" } }
       });
 
     await initPopup({ sendMessage, openOptionsPage: vi.fn() });
@@ -122,14 +133,15 @@ describe("popup UI", () => {
     const sendMessage = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, data: entries })
-    .mockResolvedValueOnce({
-      ok: true,
-      data: { provider: "deepseek", deepseek: { hasApiKey: true, model: "deepseek-v4-flash", apiKey: "" } }
-    })
-    .mockResolvedValueOnce({ ok: true, data: { enabled: true } })
-    .mockResolvedValueOnce({
-      ok: true,
-      data: { provider: "local", deepseek: { hasApiKey: false, model: "deepseek-v4-flash", apiKey: "" } }
+.mockResolvedValueOnce({
+ok: true,
+data: { provider: "deepseek", deepseek: { hasApiKey: true, model: "deepseek-v4-flash", apiKey: "" } }
+})
+.mockResolvedValueOnce({ ok: true, data: { enabled: true } })
+.mockResolvedValueOnce({ ok: true, data: { enabled: true } })
+.mockResolvedValueOnce({
+ok: true,
+data: { provider: "local", deepseek: { hasApiKey: false, model: "deepseek-v4-flash", apiKey: "" } }
       });
 
     await initPopup({ sendMessage, openOptionsPage: vi.fn() });
@@ -181,16 +193,78 @@ describe("popup UI", () => {
       type: MessageType.SaveVocabularyHighlightSettings,
       payload: { enabled: false }
     });
-    expect(notifyVocabularyHighlightSettingsChanged).toHaveBeenCalledWith(false);
+  expect(notifyVocabularyHighlightSettingsChanged).toHaveBeenCalledWith(false);
+  });
+
+  it("loads and saves translation bubble switch", async () => {
+    const notifyTranslationBubbleSettingsChanged = vi.fn();
+    const sendMessage = vi.fn(async (message: unknown) => {
+      if ((message as { type?: unknown }).type === MessageType.ListVocabulary) {
+        return { ok: true, data: entries };
+      }
+      if ((message as { type?: unknown }).type === MessageType.GetTranslationSettings) {
+        return {
+          ok: true,
+          data: {
+            provider: "local",
+            deepseek: { hasApiKey: false, apiKey: "", model: "deepseek-v4-flash" }
+          }
+        };
+      }
+      if ((message as { type?: unknown }).type === MessageType.GetVocabularyHighlightSettings) {
+        return { ok: true, data: { enabled: true } };
+      }
+      if ((message as { type?: unknown }).type === MessageType.GetTranslationBubbleSettings) {
+        return { ok: true, data: { enabled: true } };
+      }
+      if ((message as { type?: unknown }).type === MessageType.SaveTranslationBubbleSettings) {
+        return { ok: true, data: { enabled: false } };
+      }
+      return { ok: false, error: "unexpected message" };
+    });
+
+    await initPopup({
+      sendMessage,
+      openOptionsPage: vi.fn(),
+      notifyTranslationBubbleSettingsChanged
+    });
+
+    const switchInput = document.querySelector("#translationBubble") as HTMLInputElement;
+    expect(switchInput.checked).toBe(true);
+
+    switchInput.checked = false;
+    switchInput.dispatchEvent(new Event("change"));
+    await flushMicrotasks();
+
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: MessageType.SaveTranslationBubbleSettings,
+      payload: { enabled: false }
+    });
+    expect(notifyTranslationBubbleSettingsChanged).toHaveBeenCalledWith(false);
   });
 
   it("uses Chinese labels for popup buttons", () => {
     const html = readFileSync("src/ui/popup/popup.html", "utf8");
 
-    expect(html).toContain('id="openVocabulary" type="button">生词本</button>');
-    expect(html).toContain('id="saveDeepSeek" type="submit">保存</button>');
-    expect(html).toContain('id="clearDeepSeek" type="button">清除</button>');
-    expect(html).toContain("高亮生词");
+  expect(html).toContain('id="openVocabulary" type="button">生词本</button>');
+  expect(html).toContain('id="saveDeepSeek" type="submit">保存</button>');
+  expect(html).toContain('id="clearDeepSeek" type="button">清除</button>');
+  expect(html).toContain("划词气泡");
+  expect(html).toContain("高亮生词");
+  });
+
+  it("renders vocabulary highlight as a switch control", () => {
+    const html = readFileSync("src/ui/popup/popup.html", "utf8");
+    const css = readFileSync("src/ui/popup/popup.css", "utf8");
+
+    expect(html).toContain('class="switch-row"');
+    expect(html).toContain('id="highlightVocabulary"');
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain('role="switch"');
+    expect(html).toContain('class="switch-track"');
+    expect(html).toContain('class="switch-thumb"');
+    expect(css).toContain(".switch-track");
+    expect(css).toContain(".switch-input:checked + .switch-track");
   });
 
   it("does not auto-start with partial chrome runtime globals", async () => {

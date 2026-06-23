@@ -10,12 +10,13 @@ describe("createChineseFakeTranslationProvider", () => {
       targetLang: "zh-CN"
     });
 
-expect(result).toMatchObject({
-selectedText: "lead",
-baseForm: "lead",
-translation: "带领；主持",
+    expect(result).toMatchObject({
+      selectedText: "lead",
+      baseForm: "lead",
+      translation: "带领；主持",
       partOfSpeech: "动词",
       contextualMeaning: "在这段话中，lead 表示带领或主持某项活动。",
+      phrase: "lead a review",
       provider: "fake"
     });
   });
@@ -29,12 +30,13 @@ translation: "带领；主持",
       targetLang: "zh-CN"
     });
 
-expect(result).toMatchObject({
-selectedText: "lead",
-baseForm: "lead",
-translation: "铅",
+    expect(result).toMatchObject({
+      selectedText: "lead",
+      baseForm: "lead",
+      translation: "铅",
       partOfSpeech: "名词",
       contextualMeaning: "在这段话中，lead 表示一种有毒的重金属。",
+      phrase: "lead paint",
       provider: "fake"
     });
   });

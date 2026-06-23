@@ -7,6 +7,7 @@ const CSV_COLUMNS: Array<keyof VocabularyEntry> = [
   "partOfSpeech",
   "contextualMeaning",
   "example",
+  "phrase",
   "paragraphContext",
   "sourceUrl",
   "pageTitle",
